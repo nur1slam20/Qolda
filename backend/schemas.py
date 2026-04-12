@@ -1,0 +1,142 @@
+from pydantic import BaseModel, EmailStr
+from typing import Optional, List
+from datetime import datetime
+
+
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
+class UserRegister(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserOut(BaseModel):
+    id: int
+    name: str
+    email: str
+    is_admin: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserOut
+
+
+# ── Products ──────────────────────────────────────────────────────────────────
+
+class ProductOut(BaseModel):
+    id: int
+    name_kz: str
+    name_ru: str
+    description_kz: Optional[str] = None
+    description_ru: Optional[str] = None
+    category: str
+    subcategory: Optional[str] = None
+    tags: Optional[str] = None
+    price: float
+    discount_price: Optional[float] = None
+    image_url: Optional[str] = None
+    stock: int
+    avg_rating: float
+    review_count: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ProductList(BaseModel):
+    items: List[ProductOut]
+    total: int
+    page: int
+    pages: int
+
+
+# ── Reviews ───────────────────────────────────────────────────────────────────
+
+class ReviewCreate(BaseModel):
+    product_id: int
+    rating: int
+    text: Optional[str] = None
+
+
+class ReviewOut(BaseModel):
+    id: int
+    user_id: int
+    product_id: int
+    rating: int
+    text: Optional[str] = None
+    created_at: datetime
+    user_name: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+# ── Orders ────────────────────────────────────────────────────────────────────
+
+class CartItem(BaseModel):
+    product_id: int
+    quantity: int
+
+
+class OrderCreate(BaseModel):
+    items: List[CartItem]
+    delivery_address: str
+
+
+class OrderItemOut(BaseModel):
+    id: int
+    product_id: int
+    quantity: int
+    price: float
+    product: Optional[ProductOut] = None
+
+    model_config = {"from_attributes": True}
+
+
+class OrderOut(BaseModel):
+    id: int
+    user_id: int
+    total_amount: float
+    status: str
+    delivery_address: Optional[str] = None
+    created_at: datetime
+    items: List[OrderItemOut] = []
+
+    model_config = {"from_attributes": True}
+
+
+# ── Recommendations ───────────────────────────────────────────────────────────
+
+class RecommendationOut(BaseModel):
+    product: ProductOut
+    score: float
+    method: str
+    reason_tag: str
+
+
+class ClickLog(BaseModel):
+    user_id: int
+    product_id: int
+    method: str
+
+
+# ── Admin ─────────────────────────────────────────────────────────────────────
+
+class AdminStats(BaseModel):
+    total_orders: int
+    total_revenue: float
+    total_users: int
+    total_products: int
+    top_products: List[dict]
+    ctr_data: List[dict]
+    model_meta: dict

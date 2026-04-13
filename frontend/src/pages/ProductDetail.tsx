@@ -204,13 +204,13 @@ export default function ProductDetail() {
         {/* Rating breakdown */}
         {reviews.length > 0 && (
           <div className="card p-6 mb-6">
-            <div className="flex items-center gap-6">
-              <div className="text-center">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
+              <div className="text-center flex-shrink-0">
                 <div className="text-5xl font-extrabold text-gray-900">{product.avg_rating.toFixed(1)}</div>
                 <StarRating rating={product.avg_rating} size="lg" />
                 <div className="text-sm text-gray-500 mt-1">{reviews.length} пікір</div>
               </div>
-              <div className="flex-1 space-y-1">
+              <div className="flex-1 w-full space-y-1">
                 {ratingBreakdown.map(({ star, count, pct }) => (
                   <div key={star} className="flex items-center gap-2 text-sm">
                     <span className="w-4 text-gray-600">{star}</span>

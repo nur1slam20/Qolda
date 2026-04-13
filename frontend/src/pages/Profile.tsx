@@ -27,18 +27,18 @@ export default function Profile() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       {/* User info card */}
-      <div className="card p-6 mb-8 flex items-center gap-6">
+      <div className="card p-6 mb-8 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
         <div className="w-16 h-16 rounded-full bg-blue-600 text-white text-2xl flex items-center justify-center font-bold flex-shrink-0">
           {user.name[0]}
         </div>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">{user.name}</h1>
+        <div className="flex-1 text-center sm:text-left">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">{user.name}</h1>
           <p className="text-gray-500">{user.email}</p>
           <p className="text-xs text-gray-400 mt-1">
             Тіркелген / Зарегистрирован: {new Date(user.created_at).toLocaleDateString('ru-RU')}
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-shrink-0">
           <Link to="/orders" className="btn-secondary text-sm">
             📦 Тапсырыстарым
           </Link>

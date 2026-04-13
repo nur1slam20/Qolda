@@ -59,10 +59,10 @@ export default function Orders() {
             return (
               <div key={order.id} className="card">
                 <div
-                  className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50 rounded-xl"
+                  className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 cursor-pointer hover:bg-gray-50 rounded-xl"
                   onClick={() => setExpanded(isExpanded ? null : order.id)}
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <div>
                       <p className="font-semibold text-gray-900">Тапсырыс #{order.id}</p>
                       <p className="text-sm text-gray-500">
@@ -73,7 +73,7 @@ export default function Orders() {
                       {statusInfo.label}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between sm:justify-end gap-3">
                     <span className="font-bold text-blue-600">{formatPrice(order.total_amount)}</span>
                     <span className="text-gray-400">{isExpanded ? '▲' : '▼'}</span>
                   </div>

@@ -35,20 +35,20 @@ export default function Home() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       {/* Hero */}
-      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-blue-700 to-blue-500 text-white p-10 mb-10">
+      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-blue-700 to-blue-500 text-white p-6 md:p-10 mb-10">
         <div className="max-w-lg">
-          <h1 className="text-4xl font-extrabold mb-3">
+          <h1 className="text-2xl md:text-4xl font-extrabold mb-3">
             Ақылды дүкен<br />
             <span className="text-amber-300">ShopAI</span>
           </h1>
-          <p className="text-blue-100 mb-6 text-lg">
+          <p className="text-blue-100 mb-6 text-sm md:text-lg">
             Машиналық оқыту алгоритмдері арқылы сізге ең керекті тауарларды ұсынамыз.
           </p>
-          <Link to="/category/Electronics" className="bg-amber-400 hover:bg-amber-300 text-blue-900 font-bold px-6 py-3 rounded-xl transition-colors inline-block">
+          <Link to="/category/Electronics" className="bg-amber-400 hover:bg-amber-300 text-blue-900 font-bold px-4 md:px-6 py-2.5 md:py-3 rounded-xl transition-colors inline-block text-sm md:text-base">
             Сатып ала бастау →
           </Link>
         </div>
-        <div className="absolute right-8 bottom-4 text-8xl opacity-20 select-none">🛍️</div>
+        <div className="absolute right-8 bottom-4 text-8xl opacity-20 select-none hidden sm:block">🛍️</div>
       </div>
 
       {/* Categories */}

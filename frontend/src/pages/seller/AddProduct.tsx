@@ -50,7 +50,7 @@ export default function AddProduct() {
         stock: parseInt(form.stock) || 100,
       })
       navigate('/seller/products')
-    } catch (e: unknown) {
+    } catch (e: unknown) { // eslint-disable-line @typescript-eslint/no-unused-vars
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       setError(msg || 'Қате болды / Произошла ошибка')
     } finally {
@@ -59,13 +59,10 @@ export default function AddProduct() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate('/seller/products')} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&larr;</button>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Тауар қосу</h1>
-          <p className="text-gray-500 text-sm">Добавить товар</p>
-        </div>
+    <div className="max-w-2xl">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Добавить товар</h1>
+        <p className="text-gray-400 text-sm mt-0.5">Заполните информацию о новом товаре</p>
       </div>
 
       <form onSubmit={handleSubmit} className="card p-6 space-y-5">

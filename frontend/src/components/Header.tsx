@@ -72,7 +72,7 @@ export default function Header() {
                   Admin
                 </Link>
               )}
-              <button onClick={logout} className="text-sm text-blue-200 hover:text-white transition-colors">
+              <button onClick={() => { logout(); navigate('/login') }} className="text-sm text-blue-200 hover:text-white transition-colors">
                 Шығу
               </button>
             </div>
@@ -144,7 +144,7 @@ export default function Header() {
                 📦 Тапсырыстарым
               </Link>
               <button
-                onClick={() => { logout(); setMenuOpen(false) }}
+                onClick={() => { logout(); setMenuOpen(false); navigate('/login') }}
                 className="text-left text-blue-200 hover:text-white transition-colors"
               >
                 Шығу / Выйти

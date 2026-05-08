@@ -1,33 +1,52 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Search, Filter, Download } from 'lucide-react'
 import { ordersApi } from '../../api/orders'
 import type { SellerOrder } from '../../api/types'
 
-function formatPrice(n: number) {
-  return n.toLocaleString('ru-KZ') + ' ₸'
+function fmt(n: number) { return n.toLocaleString('ru-KZ') + ' ₸' }
+
+function fmtDate(iso: string) {
+  const d = new Date(iso)
+  const isToday = d.toDateString() === new Date().toDateString()
+  const time = d.toLocaleTimeString('ru-KZ', { hour: '2-digit', minute: '2-digit' })
+  return isToday
+    ? `Сегодня, ${time}`
+    : d.toLocaleDateString('ru-KZ', { day: '2-digit', month: 'short' }) + `, ${time}`
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('ru-KZ', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+const TABS = [
+  { key: 'all',       label: 'Все заказы'  },
+  { key: 'pending',   label: 'В ожидании'  },
+  { key: 'shipped',   label: 'Отгружено'   },
+  { key: 'completed', label: 'Доставлено'  },
+  { key: 'cancelled', label: 'Возвраты'    },
+]
+
+const ST: Record<string, { dot: string; label: string }> = {
+  processing: { dot: 'bg-blue-400',   label: 'В обработке' },
+  pending:    { dot: 'bg-amber-400',  label: 'В ожидании'  },
+  shipped:    { dot: 'bg-purple-400', label: 'Отгружено'   },
+  completed:  { dot: 'bg-green-500',  label: 'Доставлено'  },
+  cancelled:  { dot: 'bg-red-400',    label: 'Возврат'     },
 }
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Күтуде / Ожидание', color: 'bg-yellow-100 text-yellow-700' },
-  processing: { label: 'Өңделуде / В обработке', color: 'bg-blue-100 text-blue-700' },
-  completed: { label: 'Аяқталды / Выполнен', color: 'bg-green-100 text-green-700' },
-  cancelled: { label: 'Бас тартылды / Отменён', color: 'bg-red-100 text-red-700' },
+function matchTab(status: string, tab: string) {
+  if (tab === 'all')       return true
+  if (tab === 'pending')   return status === 'pending' || status === 'processing'
+  if (tab === 'shipped')   return status === 'shipped'
+  if (tab === 'completed') return status === 'completed'
+  if (tab === 'cancelled') return status === 'cancelled'
+  return false
 }
+
+const PAGE_SIZE = 10
 
 export default function SellerOrders() {
-  const [orders, setOrders] = useState<SellerOrder[]>([])
+  const [orders, setOrders]   = useState<SellerOrder[]>([])
   const [loading, setLoading] = useState(true)
-  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [tab, setTab]         = useState('all')
+  const [search, setSearch]   = useState('')
+  const [page, setPage]       = useState(1)
 
   useEffect(() => {
     ordersApi.getSellerOrders()
@@ -36,134 +55,200 @@ export default function SellerOrders() {
       .finally(() => setLoading(false))
   }, [])
 
-  const toggle = (id: number) =>
-    setExpandedId(prev => (prev === id ? null : id))
+  const todayCount   = orders.filter(o => new Date(o.created_at).toDateString() === new Date().toDateString()).length
+  const pendingCount = orders.filter(o => o.status === 'pending' || o.status === 'processing').length
+  const revenue      = orders.reduce((s, o) => s + o.total_amount, 0)
+  const conversion   = orders.length > 0 ? ((orders.filter(o => o.status === 'completed').length / orders.length) * 100).toFixed(1) : '0.0'
+
+  const filtered = orders.filter(o => {
+    if (!matchTab(o.status, tab)) return false
+    if (search) {
+      const q = search.toLowerCase()
+      return (
+        String(o.id).includes(q) ||
+        (o.customer_name ?? '').toLowerCase().includes(q) ||
+        o.buyer_name.toLowerCase().includes(q) ||
+        o.buyer_email.toLowerCase().includes(q)
+      )
+    }
+    return true
+  })
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-3 mb-6">
-        <Link to="/seller/dashboard" className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&larr;</Link>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Тапсырыстар</h1>
-          <p className="text-gray-500 text-sm">Заказы покупателей</p>
+          <h1 className="text-2xl font-bold text-gray-900">Управление заказами</h1>
+          <p className="text-sm text-gray-400 mt-0.5">
+            Отслеживайте и обрабатывайте заказы со всех каналов продаж в одном месте
+          </p>
         </div>
+        <button className="flex items-center gap-2 bg-[#004B57] hover:bg-[#003840] text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors shadow-sm">
+          + Новый заказ
+        </button>
       </div>
 
-      {loading ? (
-        <div className="space-y-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="card p-5 animate-pulse space-y-2">
-              <div className="h-4 bg-gray-100 rounded w-1/3" />
-              <div className="h-3 bg-gray-100 rounded w-1/2" />
-            </div>
-          ))}
-        </div>
-      ) : orders.length === 0 ? (
-        <div className="card p-12 text-center">
-          <p className="text-5xl mb-4">🛍️</p>
-          <p className="text-gray-500">
-            Тапсырыстар жоқ / Заказов пока нет
-          </p>
-          <p className="text-gray-400 text-sm mt-2">
-            Тауарларыңызды каталогта клиенттер табуы үшін жарияланғанын тексеріңіз.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {orders.map(order => {
-            const status = STATUS_LABELS[order.status] ?? { label: order.status, color: 'bg-gray-100 text-gray-700' }
-            const isExpanded = expandedId === order.id
+      {/* Stats */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        {[
+          { label: 'Всего сегодня',      value: todayCount,   suffix: '', warn: false },
+          { label: 'Ожидают сборки',     value: pendingCount, suffix: '', warn: pendingCount > 0 },
+          { label: 'Выручка (₸)',        value: fmt(revenue), suffix: '', warn: false },
+          { label: 'Конверсия',          value: conversion + '%', suffix: '', warn: false },
+        ].map(({ label, value, warn }) => (
+          <div key={label} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
+            <p className="text-xs text-gray-400 mb-1">{label}</p>
+            <p className={`text-2xl font-bold ${warn ? 'text-amber-500' : 'text-gray-900'}`}>{value}</p>
+          </div>
+        ))}
+      </div>
 
-            return (
-              <div key={order.id} className="card overflow-hidden">
-                {/* Order header — always visible */}
-                <button
-                  onClick={() => toggle(order.id)}
-                  className="w-full text-left p-5 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-gray-900">
-                          Тапсырыс №{order.id}
-                        </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${status.color}`}>
-                          {status.label}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-500">{formatDate(order.created_at)}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-blue-600">{formatPrice(order.total_amount)}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{isExpanded ? '▲ жабу' : '▼ толығырақ'}</p>
-                    </div>
-                  </div>
-
-                  {/* Customer info — always visible */}
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
-                    <div>
-                      <span className="text-gray-400">Клиент: </span>
-                      <span className="font-medium text-gray-700">
-                        {order.customer_name || order.buyer_name}
-                      </span>
-                    </div>
-                    {order.customer_phone && (
-                      <div>
-                        <span className="text-gray-400">Телефон: </span>
-                        <a
-                          href={`tel:${order.customer_phone}`}
-                          onClick={e => e.stopPropagation()}
-                          className="font-medium text-blue-600 hover:underline"
-                        >
-                          {order.customer_phone}
-                        </a>
-                      </div>
-                    )}
-                    {order.delivery_address && (
-                      <div className="sm:col-span-2">
-                        <span className="text-gray-400">Мекенжай: </span>
-                        <span className="text-gray-700">{order.delivery_address}</span>
-                      </div>
-                    )}
-                  </div>
-                </button>
-
-                {/* Expanded items */}
-                {isExpanded && (
-                  <div className="border-t border-gray-100 px-5 py-4 bg-gray-50">
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                      Тауарлар / Товары
-                    </p>
-                    <div className="space-y-2">
-                      {order.items.map(item => (
-                        <div key={item.id} className="flex items-center justify-between text-sm gap-3">
-                          <div className="flex-1 min-w-0">
-                            <span className="font-medium text-gray-800">
-                              {item.product?.name_ru ?? `Тауар #${item.product_id}`}
-                            </span>
-                            <span className="text-gray-400 ml-2">× {item.quantity}</span>
-                          </div>
-                          <span className="text-gray-700 font-medium flex-shrink-0">
-                            {formatPrice(item.price * item.quantity)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between font-semibold text-sm">
-                      <span>Барлығы / Итого:</span>
-                      <span className="text-blue-600">{formatPrice(order.total_amount)}</span>
-                    </div>
-                    <div className="mt-2">
-                      <span className="text-gray-400 text-xs">Email: </span>
-                      <span className="text-gray-600 text-xs">{order.buyer_email}</span>
-                    </div>
-                  </div>
+      {/* Table card */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        {/* Tabs + search */}
+        <div className="flex items-center border-b border-gray-100 px-4 overflow-x-auto">
+          <div className="flex flex-shrink-0">
+            {TABS.map(t => (
+              <button
+                key={t.key}
+                onClick={() => { setTab(t.key); setPage(1) }}
+                className={`py-3.5 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
+                  tab === t.key
+                    ? 'border-[#004B57] text-[#004B57]'
+                    : 'border-transparent text-gray-400 hover:text-gray-700'
+                }`}
+              >
+                {t.label}
+                {t.key !== 'all' && (
+                  <span className="ml-1.5 text-xs bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5">
+                    {orders.filter(o => matchTab(o.status, t.key)).length}
+                  </span>
                 )}
-              </div>
-            )
-          })}
+              </button>
+            ))}
+          </div>
+
+          <div className="ml-auto flex items-center gap-2 py-2 flex-shrink-0 pl-4">
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1) }}
+                placeholder="Поиск по ID или клиенту"
+                className="pl-7 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#004B57]/20 w-48"
+              />
+            </div>
+            <button className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
+              <Filter size={12} /> Фит. тыры
+            </button>
+            <button className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
+              <Download size={12} /> g svüorpw
+            </button>
+          </div>
         </div>
-      )}
+
+        {loading ? (
+          <div className="p-8 space-y-3">
+            {[...Array(5)].map((_, i) => <div key={i} className="h-14 bg-gray-100 rounded-lg animate-pulse" />)}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="py-16 text-center text-gray-400 text-sm">
+            {search ? 'По вашему запросу ничего не найдено' : 'Заказов пока нет'}
+          </div>
+        ) : (
+          <>
+            {/* Header row */}
+            <div className="grid grid-cols-12 gap-3 px-5 py-2.5 bg-gray-50/70 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100">
+              <div className="col-span-2">ID заказа</div>
+              <div className="col-span-4">Клиент</div>
+              <div className="col-span-2">Дата</div>
+              <div className="col-span-2">Статус</div>
+              <div className="col-span-1">Сумма</div>
+              <div className="col-span-1" />
+            </div>
+
+            <div className="divide-y divide-gray-50">
+              {paginated.map(order => {
+                const st = ST[order.status] ?? { dot: 'bg-gray-400', label: order.status }
+                const name = order.customer_name || order.buyer_name
+                const initials = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+                return (
+                  <div key={order.id} className="grid grid-cols-12 gap-3 px-5 py-3.5 items-center hover:bg-gray-50/50 transition-colors">
+                    <div className="col-span-2">
+                      <span className="font-mono text-sm font-semibold text-gray-800">#ORD-{order.id}</span>
+                    </div>
+
+                    <div className="col-span-4 flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-[#004B57]/10 text-[#004B57] flex items-center justify-center text-xs font-bold flex-shrink-0">
+                        {initials}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
+                        {order.customer_phone && (
+                          <p className="text-xs text-gray-400 truncate">{order.customer_phone}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="col-span-2 text-xs text-gray-500">{fmtDate(order.created_at)}</div>
+
+                    <div className="col-span-2 flex items-center gap-1.5">
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${st.dot}`} />
+                      <span className="text-sm text-gray-700 font-medium">{st.label}</span>
+                    </div>
+
+                    <div className="col-span-1 text-sm font-semibold text-gray-900">{fmt(order.total_amount)}</div>
+
+                    <div className="col-span-1 text-right">
+                      <button className="text-gray-300 hover:text-gray-600 transition-colors font-bold tracking-wider">
+                        ···
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Pagination */}
+            <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
+              <span className="text-xs text-gray-400">
+                Показано {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} из {filtered.length} заказов
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-xs text-gray-400 hover:bg-gray-100 disabled:opacity-30 transition-colors"
+                >
+                  ‹
+                </button>
+                {Array.from({ length: Math.min(3, totalPages) }, (_, i) => i + 1).map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setPage(n)}
+                    className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-semibold transition-colors ${
+                      page === n ? 'bg-[#004B57] text-white' : 'text-gray-500 hover:bg-gray-100'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg text-xs text-gray-400 hover:bg-gray-100 disabled:opacity-30 transition-colors"
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

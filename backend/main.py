@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -18,30 +19,51 @@ async def lifespan(app: FastAPI):
     migrate_db()
     logger.info("Database tables created/verified")
 
-    # Load or train ML model
     db = SessionLocal()
     try:
-        from ml.trainer import load_or_train
-        load_or_train(db)
-    except Exception as e:
-        logger.warning(f"ML model init failed (will retry on first request): {e}")
+        # Auto-seed if database is empty (first deployment)
+        from models import Product as ProductModel
+        if db.query(ProductModel).count() == 0:
+            logger.info("Empty database — running seed data...")
+            try:
+                from seed.seed_data import run as seed_run
+                seed_run()
+                logger.info("Seed data inserted successfully")
+            except Exception as e:
+                logger.warning(f"Auto-seed failed: {e}")
+
+        # Load or train ML model
+        try:
+            from ml.trainer import load_or_train
+            load_or_train(db)
+        except Exception as e:
+            logger.warning(f"ML model init failed (will retry on first request): {e}")
     finally:
         db.close()
 
     yield
 
 
+# ── CORS ──────────────────────────────────────────────────────────────────────
+_cors_env = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000")
+if _cors_env.strip() == "*":
+    _origins = ["*"]
+    _credentials = False          # browser blocks credentials with wildcard origin
+else:
+    _origins = [o.strip() for o in _cors_env.split(",")]
+    _credentials = True
+
 app = FastAPI(
-    title="ShopAI — Intelligent E-Commerce API",
-    description="Diploma thesis: hybrid ML recommendation system for online store",
+    title="QOLDA — E-Commerce API",
+    description="Diploma thesis: e-commerce platform with seller dashboard",
     version="1.0.0",
     lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=_origins,
+    allow_credentials=_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -57,4 +79,4 @@ app.include_router(seller.router, prefix="/api/seller", tags=["seller"])
 
 @app.get("/")
 def root():
-    return {"message": "ShopAI API is running", "docs": "/docs"}
+    return {"message": "QOLDA API is running", "docs": "/docs"}

@@ -5,7 +5,7 @@ export default function Footer() {
     <footer className="bg-gray-900 text-gray-300 mt-16">
       <div className="max-w-7xl mx-auto px-4 py-10 grid grid-cols-1 md:grid-cols-3 gap-8">
         <div>
-          <h3 className="text-white text-xl font-bold mb-3">Shop<span className="text-amber-400">AI</span></h3>
+          <h3 className="text-white text-xl font-bold mb-3">QOLDA</h3>
           <p className="text-sm text-gray-400">
             Машиналық оқыту алгоритмдеріне негізделген ақылды онлайн дүкен.
             <br />
@@ -34,7 +34,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="border-t border-gray-800 text-center py-4 text-xs text-gray-500">
-        © 2024 ShopAI — Дипломдық жоба / Дипломный проект
+        © 2026 QOLDA — Дипломдық жоба / Дипломный проект
       </div>
     </footer>
   )

@@ -25,7 +25,7 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
         {/* Logo */}
         <Link to="/" className="text-xl md:text-2xl font-bold tracking-tight flex-shrink-0">
-          Shop<span className="text-amber-400">AI</span>
+          QOLDA
         </Link>
 
         {/* Search — desktop only */}

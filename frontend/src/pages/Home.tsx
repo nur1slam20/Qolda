@@ -39,7 +39,7 @@ export default function Home() {
         <div className="max-w-lg">
           <h1 className="text-2xl md:text-4xl font-extrabold mb-3">
             Ақылды дүкен<br />
-            <span className="text-amber-300">ShopAI</span>
+            <span className="text-amber-300">QOLDA</span>
           </h1>
           <p className="text-blue-100 mb-6 text-sm md:text-lg">
             Машиналық оқыту алгоритмдері арқылы сізге ең керекті тауарларды ұсынамыз.

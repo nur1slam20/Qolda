@@ -20,6 +20,7 @@ def register(data: UserRegister, db: Session = Depends(get_db)):
         name=data.name,
         email=data.email,
         password_hash=get_password_hash(data.password),
+        is_seller=data.is_seller,
     )
     db.add(user)
     db.commit()

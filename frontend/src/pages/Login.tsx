@@ -18,7 +18,7 @@ export default function Login() {
     try {
       const data = await authApi.login(email, password)
       setAuth(data.user, data.access_token)
-      navigate('/')
+      navigate(data.user.is_seller ? '/seller/dashboard' : '/')
     } catch {
       setError('Электрондық пошта немесе құпиясөз қате / Неверный email или пароль')
     } finally {
@@ -83,9 +83,10 @@ export default function Login() {
         </p>
 
         {/* Demo hint */}
-        <div className="mt-4 p-3 bg-blue-50 rounded-lg text-xs text-blue-700">
-          <strong>Demo:</strong> aidar@example.com / password123<br />
-          <strong>Admin:</strong> admin@shopai.kz / admin123
+        <div className="mt-4 p-3 bg-blue-50 rounded-lg text-xs text-blue-700 space-y-0.5">
+          <p><strong>Покупатель:</strong> aidar@example.com / password123</p>
+          <p><strong>Admin:</strong> admin@shopai.kz / admin123</p>
+          <p className="text-blue-500">Продавец: зарегистрируйтесь выбрав "Продавец"</p>
         </div>
       </div>
     </div>

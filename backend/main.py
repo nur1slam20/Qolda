@@ -3,9 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
-from database import engine, SessionLocal, Base
+from database import engine, SessionLocal, Base, migrate_db
 import models  # noqa: F401 — registers all tables
-from routers import auth, products, recommendations, orders, reviews, admin
+from routers import auth, products, recommendations, orders, reviews, admin, seller
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -13,8 +13,9 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create all tables
+    # Create all tables then run safe column migrations
     Base.metadata.create_all(bind=engine)
+    migrate_db()
     logger.info("Database tables created/verified")
 
     # Load or train ML model
@@ -51,6 +52,7 @@ app.include_router(recommendations.router, prefix="/api/recommendations", tags=[
 app.include_router(orders.router, prefix="/api/orders", tags=["orders"])
 app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
+app.include_router(seller.router, prefix="/api/seller", tags=["seller"])
 
 
 @app.get("/")

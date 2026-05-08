@@ -8,6 +8,7 @@ export default function Register() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [isSeller, setIsSeller] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const setAuth = useUserStore(s => s.setAuth)
@@ -26,9 +27,9 @@ export default function Register() {
     }
     setLoading(true)
     try {
-      const data = await authApi.register(name, email, password)
+      const data = await authApi.register(name, email, password, isSeller)
       setAuth(data.user, data.access_token)
-      navigate('/')
+      navigate(isSeller ? '/seller/dashboard' : '/')
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       setError(msg || 'Тіркелу қатесі / Ошибка регистрации')
@@ -47,6 +48,32 @@ export default function Register() {
           <p className="text-gray-500 mt-1">Жаңа аккаунт / Новый аккаунт</p>
         </div>
 
+        {/* Account type toggle */}
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden mb-5">
+          <button
+            type="button"
+            onClick={() => setIsSeller(false)}
+            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+              !isSeller
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Сатып алушы / Покупатель
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsSeller(true)}
+            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+              isSeller
+                ? 'bg-blue-600 text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Сатушы / Продавец
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -57,7 +84,7 @@ export default function Register() {
               className="input"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="Айдар Бекұлы"
+              placeholder={isSeller ? 'Дүкен атауы / Название магазина' : 'Айдар Бекұлы'}
             />
           </div>
           <div>
@@ -107,7 +134,11 @@ export default function Register() {
           )}
 
           <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
-            {loading ? 'Тіркелуде...' : 'Тіркелу / Зарегистрироваться'}
+            {loading
+              ? 'Тіркелуде...'
+              : isSeller
+              ? 'Сатушы ретінде тіркелу / Зарегистрироваться как продавец'
+              : 'Тіркелу / Зарегистрироваться'}
           </button>
         </form>
 

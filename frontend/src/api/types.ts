@@ -3,6 +3,7 @@ export interface User {
   name: string
   email: string
   is_admin: boolean
+  is_seller: boolean
   created_at: string
 }
 
@@ -21,7 +22,21 @@ export interface Product {
   stock: number
   avg_rating: number
   review_count: number
+  seller_id?: number
   created_at: string
+}
+
+export interface ProductCreate {
+  name_ru: string
+  name_kz: string
+  description_ru?: string
+  description_kz?: string
+  category: string
+  subcategory?: string
+  price: number
+  discount_price?: number
+  image_url?: string
+  stock: number
 }
 
 export interface ProductList {
@@ -55,8 +70,29 @@ export interface Order {
   total_amount: number
   status: string
   delivery_address?: string
+  customer_name?: string
+  customer_phone?: string
   created_at: string
   items: OrderItem[]
+}
+
+export interface SellerOrder {
+  id: number
+  total_amount: number
+  status: string
+  delivery_address?: string
+  customer_name?: string
+  customer_phone?: string
+  buyer_name: string
+  buyer_email: string
+  created_at: string
+  items: OrderItem[]
+}
+
+export interface SellerStats {
+  total_products: number
+  total_orders: number
+  total_revenue: number
 }
 
 export interface Recommendation {

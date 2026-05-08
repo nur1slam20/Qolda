@@ -15,6 +15,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     is_admin = Column(Boolean, default=False)
+    is_seller = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     orders = relationship("Order", back_populates="user")
@@ -38,6 +39,7 @@ class Product(Base):
     discount_price = Column(Float)
     image_url = Column(String(1000))
     stock = Column(Integer, default=100)
+    seller_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     avg_rating = Column(Float, default=0.0)
     review_count = Column(Integer, default=0)
     combined_text = Column(Text)
@@ -57,6 +59,8 @@ class Order(Base):
     total_amount = Column(Float, nullable=False)
     status = Column(String(50), default="pending")
     delivery_address = Column(Text)
+    customer_name = Column(String(255), nullable=True)
+    customer_phone = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="orders")

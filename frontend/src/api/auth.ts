@@ -8,8 +8,8 @@ interface AuthResponse {
 }
 
 export const authApi = {
-  register: (name: string, email: string, password: string) =>
-    client.post<AuthResponse>('/auth/register', { name, email, password }).then(r => r.data),
+  register: (name: string, email: string, password: string, is_seller = false) =>
+    client.post<AuthResponse>('/auth/register', { name, email, password, is_seller }).then(r => r.data),
 
   login: (email: string, password: string) =>
     client.post<AuthResponse>('/auth/login', { email, password }).then(r => r.data),

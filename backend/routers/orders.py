@@ -4,8 +4,8 @@ from typing import List
 
 from database import get_db
 from models import Order, OrderItem, Product, User
-from schemas import OrderCreate, OrderOut
-from auth import require_user
+from schemas import OrderCreate, OrderOut, OrderItemOut, SellerOrderOut
+from auth import require_user, require_seller
 
 router = APIRouter()
 
@@ -40,6 +40,8 @@ def create_order(
         total_amount=round(total, 2),
         status="processing",
         delivery_address=data.delivery_address,
+        customer_name=data.customer_name or current_user.name,
+        customer_phone=data.customer_phone,
     )
     db.add(order)
     db.flush()
@@ -57,6 +59,53 @@ def create_order(
     db.commit()
     db.refresh(order)
     return OrderOut.model_validate(order)
+
+
+@router.get("/seller", response_model=List[SellerOrderOut])
+def get_seller_orders(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_seller),
+):
+    # Find all products belonging to this seller
+    seller_product_ids = [
+        p.id for p in db.query(Product).filter(Product.seller_id == current_user.id).all()
+    ]
+
+    if not seller_product_ids:
+        return []
+
+    # Find orders that contain at least one seller product
+    order_id_rows = (
+        db.query(OrderItem.order_id)
+        .filter(OrderItem.product_id.in_(seller_product_ids))
+        .distinct()
+        .all()
+    )
+    order_ids = [r[0] for r in order_id_rows]
+
+    orders = (
+        db.query(Order)
+        .filter(Order.id.in_(order_ids))
+        .order_by(Order.created_at.desc())
+        .all()
+    )
+
+    result = []
+    for order in orders:
+        result.append(SellerOrderOut(
+            id=order.id,
+            total_amount=order.total_amount,
+            status=order.status,
+            delivery_address=order.delivery_address,
+            customer_name=order.customer_name or order.user.name,
+            customer_phone=order.customer_phone,
+            buyer_name=order.user.name,
+            buyer_email=order.user.email,
+            created_at=order.created_at,
+            items=[OrderItemOut.model_validate(item) for item in order.items],
+        ))
+
+    return result
 
 
 @router.get("/{user_id}", response_model=List[OrderOut])

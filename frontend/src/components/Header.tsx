@@ -62,6 +62,11 @@ export default function Header() {
               <Link to="/profile" className="text-sm hover:text-amber-300 transition-colors">
                 {user.name.split(' ')[0]}
               </Link>
+              {user.is_seller && (
+                <Link to="/seller/dashboard" className="text-xs bg-green-400 text-green-900 px-2 py-1 rounded font-semibold hover:bg-green-300">
+                  Дүкен
+                </Link>
+              )}
               {user.is_admin && (
                 <Link to="/admin" className="text-xs bg-amber-400 text-blue-900 px-2 py-1 rounded font-semibold hover:bg-amber-300">
                   Admin
@@ -117,6 +122,15 @@ export default function Header() {
               >
                 👤 {user.name}
               </Link>
+              {user.is_seller && (
+                <Link
+                  to="/seller/dashboard"
+                  onClick={() => setMenuOpen(false)}
+                  className="text-green-300 font-semibold hover:text-green-200"
+                >
+                  🏪 Дүкенім / Мой магазин
+                </Link>
+              )}
               {user.is_admin && (
                 <Link
                   to="/admin"

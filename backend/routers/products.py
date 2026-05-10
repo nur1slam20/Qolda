@@ -3,9 +3,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import Optional
 
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+
 from database import get_db
 from models import Product, ProductView, User
-from schemas import ProductOut, ProductList, ProductCreate
+from schemas import ProductOut, ProductList, ProductCreate, PlagiarismResult, PlagiarismMatch
 from auth import get_current_user, require_seller
 
 router = APIRouter()
@@ -138,6 +142,70 @@ def get_my_products(
         total=total,
         page=page,
         pages=pages,
+    )
+
+
+@router.get("/{product_id}/plagiarism", response_model=PlagiarismResult)
+def check_plagiarism(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_seller),
+):
+    target = db.query(Product).filter(Product.id == product_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Product not found")
+    if target.seller_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    all_products = db.query(Product).all()
+    if len(all_products) < 2:
+        return PlagiarismResult(product_id=product_id, status="verified", max_similarity=0.0, matches=[])
+
+    texts = [
+        f"{p.name_ru} {p.category} {p.subcategory or ''} {p.description_ru or ''} {p.tags or ''}".strip()
+        for p in all_products
+    ]
+    ids = [p.id for p in all_products]
+
+    vectorizer = TfidfVectorizer(ngram_range=(1, 2), max_features=5000, sublinear_tf=True)
+    tfidf_matrix = vectorizer.fit_transform(texts)
+
+    target_idx = ids.index(product_id)
+    target_vec = tfidf_matrix[target_idx]
+    sims = cosine_similarity(target_vec, tfidf_matrix).flatten()
+
+    scored = sorted(
+        [(ids[i], float(sims[i]), all_products[i]) for i in range(len(ids)) if ids[i] != product_id],
+        key=lambda x: x[1],
+        reverse=True,
+    )
+
+    top = scored[:3]
+    max_sim = top[0][1] if top else 0.0
+
+    if max_sim >= 0.70:
+        status = "high_risk"
+    elif max_sim >= 0.40:
+        status = "suspicious"
+    else:
+        status = "verified"
+
+    matches = [
+        PlagiarismMatch(
+            product_id=pid,
+            name_ru=p.name_ru,
+            category=p.category,
+            similarity=round(sim, 3),
+        )
+        for pid, sim, p in top
+        if sim >= 0.15
+    ]
+
+    return PlagiarismResult(
+        product_id=product_id,
+        status=status,
+        max_similarity=round(max_sim, 3),
+        matches=matches,
     )
 
 

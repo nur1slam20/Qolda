@@ -152,6 +152,24 @@ class SellerOrderOut(BaseModel):
 
 # ── Seller ────────────────────────────────────────────────────────────────────
 
+class OrderStatusUpdate(BaseModel):
+    status: str
+
+
+class PlagiarismMatch(BaseModel):
+    product_id: int
+    name_ru: str
+    category: str
+    similarity: float
+
+
+class PlagiarismResult(BaseModel):
+    product_id: int
+    status: str  # verified | suspicious | high_risk
+    max_similarity: float
+    matches: List[PlagiarismMatch]
+
+
 class SellerStats(BaseModel):
     total_products: int
     total_orders: int

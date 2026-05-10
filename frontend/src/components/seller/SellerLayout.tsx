@@ -1,17 +1,18 @@
 import { NavLink, Outlet, Navigate, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ShoppingCart,
-  Users, Bot, Settings, Bell, LogOut,
+  Users, Bot, Settings, Bell, LogOut, Warehouse,
 } from 'lucide-react'
 import { useUserStore } from '../../store/userStore'
 
 const NAV = [
-  { to: '/seller/dashboard', icon: LayoutDashboard, label: 'Дашборд' },
-  { to: '/seller/products',  icon: Package,          label: 'Склад'    },
-  { to: '/seller/orders',    icon: ShoppingCart,     label: 'Заказы'   },
-  { to: '/seller/customers', icon: Users,            label: 'Клиенты'  },
+  { to: '/seller/dashboard', icon: LayoutDashboard, label: 'Дашборд'      },
+  { to: '/seller/products',  icon: Package,          label: 'Товары'       },
+  { to: '/seller/warehouse', icon: Warehouse,        label: 'Склад'        },
+  { to: '/seller/orders',    icon: ShoppingCart,     label: 'Заказы'       },
+  { to: '/seller/customers', icon: Users,            label: 'Клиенты'      },
   { to: '/seller/ai',        icon: Bot,              label: 'AI Ассистент' },
-  { to: '/seller/settings',  icon: Settings,         label: 'Настройки' },
+  { to: '/seller/settings',  icon: Settings,         label: 'Настройки'    },
 ]
 
 export default function SellerLayout() {

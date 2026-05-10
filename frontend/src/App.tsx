@@ -18,6 +18,7 @@ import SellerProducts from './pages/seller/SellerProducts'
 import SellerOrders from './pages/seller/SellerOrders'
 import SellerCustomers from './pages/seller/SellerCustomers'
 import SellerAI from './pages/seller/SellerAI'
+import SellerWarehouse from './pages/seller/SellerWarehouse'
 import { useUserStore } from './store/userStore'
 
 function AuthLayout() {
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="add-product" element={<AddProduct />} />
           <Route path="customers"   element={<SellerCustomers />} />
           <Route path="ai"          element={<SellerAI />} />
+          <Route path="warehouse"   element={<SellerWarehouse />} />
           <Route path="settings"    element={<Navigate to="/seller/dashboard" replace />} />
           <Route index              element={<Navigate to="/seller/dashboard" replace />} />
         </Route>

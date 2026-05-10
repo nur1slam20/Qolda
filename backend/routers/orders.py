@@ -4,7 +4,7 @@ from typing import List
 
 from database import get_db
 from models import Order, OrderItem, Product, User
-from schemas import OrderCreate, OrderOut, OrderItemOut, SellerOrderOut
+from schemas import OrderCreate, OrderOut, OrderItemOut, SellerOrderOut, OrderStatusUpdate
 from auth import require_user, require_seller
 
 router = APIRouter()
@@ -106,6 +106,48 @@ def get_seller_orders(
         ))
 
     return result
+
+
+ALLOWED_STATUSES = {"processing", "pending", "shipped", "completed", "cancelled"}
+
+
+@router.patch("/{order_id}/status", response_model=SellerOrderOut)
+def update_order_status(
+    order_id: int,
+    data: OrderStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_seller),
+):
+    if data.status not in ALLOWED_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {data.status}")
+
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    seller_product_ids = {
+        p.id for p in db.query(Product).filter(Product.seller_id == current_user.id).all()
+    }
+    order_product_ids = {item.product_id for item in order.items}
+    if not seller_product_ids & order_product_ids and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    order.status = data.status
+    db.commit()
+    db.refresh(order)
+
+    return SellerOrderOut(
+        id=order.id,
+        total_amount=order.total_amount,
+        status=order.status,
+        delivery_address=order.delivery_address,
+        customer_name=order.customer_name or order.user.name,
+        customer_phone=order.customer_phone,
+        buyer_name=order.user.name,
+        buyer_email=order.user.email,
+        created_at=order.created_at,
+        items=[OrderItemOut.model_validate(item) for item in order.items],
+    )
 
 
 @router.get("/{user_id}", response_model=List[OrderOut])

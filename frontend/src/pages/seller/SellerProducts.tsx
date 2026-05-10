@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Filter, Download, Lightbulb, TrendingUp } from 'lucide-react'
+import { Search, Filter, Download, Lightbulb, TrendingUp, ShieldCheck, ShieldAlert, ShieldX, Loader2 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, ResponsiveContainer, Tooltip,
 } from 'recharts'
 import { productsApi } from '../../api/products'
 import { ordersApi } from '../../api/orders'
-import type { Product, SellerOrder } from '../../api/types'
+import type { Product, SellerOrder, PlagiarismResult } from '../../api/types'
 import ProductImage from '../../components/ProductImage'
 
 function fmt(n: number) { return n.toLocaleString('ru-KZ') + ' ₸' }
@@ -32,11 +32,64 @@ const CAT_COLOR: Record<string, string> = {
   Sports:      'bg-green-50 text-green-700',
 }
 
+const PLAG_CFG = {
+  verified:   { icon: ShieldCheck, cls: 'text-green-600 bg-green-50',  label: 'Проверен'   },
+  suspicious: { icon: ShieldAlert, cls: 'text-amber-600 bg-amber-50',  label: 'Подозрительный' },
+  high_risk:  { icon: ShieldX,     cls: 'text-red-600 bg-red-50',      label: 'Высокий риск'   },
+} as const
+
+function PlagiarismBadge({
+  result,
+  checking,
+  onCheck,
+}: {
+  result?: PlagiarismResult
+  checking: boolean
+  onCheck: () => void
+}) {
+  if (checking) {
+    return (
+      <span className="flex items-center gap-1 text-xs text-gray-400">
+        <Loader2 size={12} className="animate-spin" /> Проверка...
+      </span>
+    )
+  }
+
+  if (!result) {
+    return (
+      <button
+        onClick={onCheck}
+        className="text-xs text-[#004B57] border border-[#004B57]/30 rounded-lg px-2 py-1 hover:bg-[#004B57]/5 transition-colors font-medium"
+      >
+        Проверить
+      </button>
+    )
+  }
+
+  const cfg = PLAG_CFG[result.status]
+  const Icon = cfg.icon
+  return (
+    <div className="space-y-1">
+      <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.cls}`}>
+        <Icon size={11} />
+        {cfg.label}
+      </span>
+      {result.matches.length > 0 && (
+        <p className="text-xs text-gray-400 truncate max-w-[120px]" title={result.matches[0].name_ru}>
+          ≈ {Math.round(result.max_similarity * 100)}% — {result.matches[0].name_ru}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function SellerProducts() {
-  const [products, setProducts] = useState<Product[]>([])
-  const [orders, setOrders]     = useState<SellerOrder[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [search, setSearch]     = useState('')
+  const [products, setProducts]         = useState<Product[]>([])
+  const [orders, setOrders]             = useState<SellerOrder[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [search, setSearch]             = useState('')
+  const [plagResults, setPlagResults]   = useState<Record<number, PlagiarismResult>>({})
+  const [checking, setChecking]         = useState<Set<number>>(new Set())
 
   const load = () => {
     setLoading(true)
@@ -54,6 +107,17 @@ export default function SellerProducts() {
       await productsApi.delete(id)
       setProducts(prev => prev.filter(p => p.id !== id))
     } catch { alert('Не удалось удалить товар') }
+  }
+
+  const handlePlagiarismCheck = async (id: number) => {
+    setChecking(prev => new Set(prev).add(id))
+    try {
+      const result = await productsApi.checkPlagiarism(id)
+      setPlagResults(prev => ({ ...prev, [id]: result }))
+    } catch { /* silent */ }
+    finally {
+      setChecking(prev => { const s = new Set(prev); s.delete(id); return s })
+    }
   }
 
   const lowStock  = products.filter(p => p.stock > 0 && p.stock <= 10).length
@@ -155,11 +219,12 @@ export default function SellerProducts() {
         ) : (
           <>
             <div className="grid grid-cols-12 gap-3 px-5 py-2.5 bg-gray-50/70 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100">
-              <div className="col-span-4">Товар</div>
+              <div className="col-span-3">Товар</div>
               <div className="col-span-2">SKU</div>
               <div className="col-span-1">Категория</div>
               <div className="col-span-2">Остаток</div>
-              <div className="col-span-2">Цена</div>
+              <div className="col-span-1">Цена</div>
+              <div className="col-span-2">Антиплагиат</div>
               <div className="col-span-1">Статус</div>
             </div>
 
@@ -170,13 +235,13 @@ export default function SellerProducts() {
                 const catCls = CAT_COLOR[p.category] ?? 'bg-gray-100 text-gray-600'
                 return (
                   <div key={p.id} className="grid grid-cols-12 gap-3 px-5 py-3 items-center hover:bg-gray-50/50 transition-colors group">
-                    <div className="col-span-4 flex items-center gap-3">
+                    <div className="col-span-3 flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-100 flex-shrink-0 bg-gray-50">
                         <ProductImage src={p.image_url} alt={p.name_ru} className="w-full h-full object-cover" iconSize={16} />
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{p.name_ru}</p>
-                        <p className="text-xs text-gray-400">{p.name_kz}</p>
+                        <p className="text-xs text-gray-400 truncate">{p.name_kz}</p>
                       </div>
                     </div>
 
@@ -201,11 +266,19 @@ export default function SellerProducts() {
                       </div>
                     </div>
 
-                    <div className="col-span-2">
+                    <div className="col-span-1">
                       <p className="text-sm font-semibold text-gray-900">{fmt(p.discount_price ?? p.price)}</p>
                       {p.discount_price && (
                         <p className="text-xs text-gray-400 line-through">{fmt(p.price)}</p>
                       )}
+                    </div>
+
+                    <div className="col-span-2">
+                      <PlagiarismBadge
+                        result={plagResults[p.id]}
+                        checking={checking.has(p.id)}
+                        onCheck={() => handlePlagiarismCheck(p.id)}
+                      />
                     </div>
 
                     <div className="col-span-1 flex items-center justify-between">

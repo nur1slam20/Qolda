@@ -102,6 +102,20 @@ export interface Recommendation {
   reason_tag: string
 }
 
+export interface PlagiarismMatch {
+  product_id: number
+  name_ru: string
+  category: string
+  similarity: number
+}
+
+export interface PlagiarismResult {
+  product_id: number
+  status: 'verified' | 'suspicious' | 'high_risk'
+  max_similarity: number
+  matches: PlagiarismMatch[]
+}
+
 export interface AdminStats {
   total_orders: number
   total_revenue: number

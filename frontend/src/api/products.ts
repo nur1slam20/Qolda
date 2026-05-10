@@ -1,5 +1,5 @@
 import client from './client'
-import type { Product, ProductList, ProductCreate } from './types'
+import type { Product, ProductList, ProductCreate, PlagiarismResult } from './types'
 
 export const productsApi = {
   list: (params?: Record<string, unknown>) =>
@@ -22,4 +22,7 @@ export const productsApi = {
 
   getMine: (page = 1) =>
     client.get<ProductList>('/products/mine', { params: { page, limit: 50 } }).then(r => r.data),
+
+  checkPlagiarism: (id: number) =>
+    client.get<PlagiarismResult>(`/products/${id}/plagiarism`).then(r => r.data),
 }

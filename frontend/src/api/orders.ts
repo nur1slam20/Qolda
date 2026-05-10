@@ -17,4 +17,7 @@ export const ordersApi = {
 
   getSellerOrders: () =>
     client.get<SellerOrder[]>('/orders/seller').then(r => r.data),
+
+  updateStatus: (orderId: number, status: string) =>
+    client.patch<SellerOrder>(`/orders/${orderId}/status`, { status }).then(r => r.data),
 }

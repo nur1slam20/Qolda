@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Search, Filter, Download } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Search, Filter, Download, ChevronDown } from 'lucide-react'
 import { ordersApi } from '../../api/orders'
 import type { SellerOrder } from '../../api/types'
 
@@ -41,12 +41,82 @@ function matchTab(status: string, tab: string) {
 
 const PAGE_SIZE = 10
 
+const STATUS_OPTIONS = [
+  { value: 'processing', label: 'В обработке' },
+  { value: 'pending',    label: 'В ожидании'  },
+  { value: 'shipped',    label: 'Отгружено'   },
+  { value: 'completed',  label: 'Доставлено'  },
+  { value: 'cancelled',  label: 'Возврат'     },
+]
+
+function StatusDropdown({ order, onUpdate }: { order: SellerOrder; onUpdate: (o: SellerOrder) => void }) {
+  const [open, setOpen]     = useState(false)
+  const [busy, setBusy]     = useState(false)
+  const ref                 = useRef<HTMLDivElement>(null)
+  const st                  = ST[order.status] ?? { dot: 'bg-gray-400', label: order.status }
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const change = async (status: string) => {
+    if (status === order.status) { setOpen(false); return }
+    setBusy(true)
+    try {
+      const updated = await ordersApi.updateStatus(order.id, status)
+      onUpdate(updated)
+    } catch { /* ignore */ }
+    finally { setBusy(false); setOpen(false) }
+  }
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        onClick={() => setOpen(o => !o)}
+        disabled={busy}
+        className="flex items-center gap-1.5 text-sm text-gray-700 font-medium hover:bg-gray-100 px-2 py-1 rounded-lg transition-colors"
+      >
+        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${st.dot}`} />
+        {st.label}
+        <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute z-20 left-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-xl shadow-lg py-1">
+          {STATUS_OPTIONS.map(opt => {
+            const s = ST[opt.value]
+            return (
+              <button
+                key={opt.value}
+                onClick={() => change(opt.value)}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 transition-colors ${
+                  opt.value === order.status ? 'font-semibold text-[#004B57]' : 'text-gray-700'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${s?.dot ?? 'bg-gray-400'}`} />
+                {opt.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function SellerOrders() {
   const [orders, setOrders]   = useState<SellerOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab]         = useState('all')
   const [search, setSearch]   = useState('')
   const [page, setPage]       = useState(1)
+
+  const handleUpdate = (updated: SellerOrder) => {
+    setOrders(prev => prev.map(o => o.id === updated.id ? updated : o))
+  }
 
   useEffect(() => {
     ordersApi.getSellerOrders()
@@ -143,10 +213,10 @@ export default function SellerOrders() {
               />
             </div>
             <button className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-              <Filter size={12} /> Фит. тыры
+              <Filter size={12} /> Фильтры
             </button>
             <button className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
-              <Download size={12} /> g svüorpw
+              <Download size={12} /> Экспорт
             </button>
           </div>
         </div>
@@ -166,14 +236,12 @@ export default function SellerOrders() {
               <div className="col-span-2">ID заказа</div>
               <div className="col-span-4">Клиент</div>
               <div className="col-span-2">Дата</div>
-              <div className="col-span-2">Статус</div>
+              <div className="col-span-3">Статус</div>
               <div className="col-span-1">Сумма</div>
-              <div className="col-span-1" />
             </div>
 
             <div className="divide-y divide-gray-50">
               {paginated.map(order => {
-                const st = ST[order.status] ?? { dot: 'bg-gray-400', label: order.status }
                 const name = order.customer_name || order.buyer_name
                 const initials = name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
                 return (
@@ -196,18 +264,11 @@ export default function SellerOrders() {
 
                     <div className="col-span-2 text-xs text-gray-500">{fmtDate(order.created_at)}</div>
 
-                    <div className="col-span-2 flex items-center gap-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${st.dot}`} />
-                      <span className="text-sm text-gray-700 font-medium">{st.label}</span>
+                    <div className="col-span-3">
+                      <StatusDropdown order={order} onUpdate={handleUpdate} />
                     </div>
 
                     <div className="col-span-1 text-sm font-semibold text-gray-900">{fmt(order.total_amount)}</div>
-
-                    <div className="col-span-1 text-right">
-                      <button className="text-gray-300 hover:text-gray-600 transition-colors font-bold tracking-wider">
-                        ···
-                      </button>
-                    </div>
                   </div>
                 )
               })}

@@ -16,13 +16,29 @@ export default function Checkout() {
 
   const [customerName, setCustomerName] = useState(user?.name || '')
   const [phone, setPhone] = useState('')
+  const [phoneError, setPhoneError] = useState('')
   const [address, setAddress] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  const validatePhone = (value: string) => {
+    const digits = value.replace(/\D/g, '')
+    if (!value) return 'Введите номер телефона'
+    if (!/^(\+7|8)/.test(value)) return 'Номер должен начинаться с +7 или 8'
+    if (digits.length !== 11) return 'Номер должен содержать 11 цифр'
+    return ''
+  }
+
+  const handlePhoneChange = (value: string) => {
+    setPhone(value)
+    if (phoneError) setPhoneError(validatePhone(value))
+  }
   const [success, setSuccess] = useState(false)
   const [orderId, setOrderId] = useState<number | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const err = validatePhone(phone)
+    if (err) { setPhoneError(err); return }
     if (!user || items.length === 0) return
     setSubmitting(true)
     try {
@@ -99,11 +115,15 @@ export default function Checkout() {
               <input
                 required
                 type="tel"
-                className="input"
-                placeholder="+7 (777) 123-45-67"
+                className={`input ${phoneError ? 'border-red-400 focus:ring-red-200' : ''}`}
+                placeholder="+77771234567 или 87771234567"
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
+                onChange={e => handlePhoneChange(e.target.value)}
+                onBlur={() => setPhoneError(validatePhone(phone))}
               />
+              {phoneError && (
+                <p className="text-xs text-red-500 mt-1">{phoneError}</p>
+              )}
             </div>
           </div>
 
@@ -121,7 +141,7 @@ export default function Checkout() {
 
           <button
             type="submit"
-            disabled={submitting || !address || !customerName || !phone}
+            disabled={submitting || !address || !customerName || !phone || !!phoneError}
             className="btn-primary w-full py-3 text-base"
           >
             {submitting ? 'Жіберілуде...' : 'Растау / Подтвердить заказ'}

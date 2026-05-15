@@ -34,6 +34,16 @@ class Token(BaseModel):
     user: UserOut
 
 
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+
 # ── Products ──────────────────────────────────────────────────────────────────
 
 class ProductCreate(BaseModel):
@@ -43,6 +53,7 @@ class ProductCreate(BaseModel):
     description_kz: Optional[str] = None
     category: str
     subcategory: Optional[str] = None
+    tags: Optional[str] = None
     price: float
     discount_price: Optional[float] = None
     image_url: Optional[str] = None
@@ -97,6 +108,19 @@ class ReviewOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ── Delivery ──────────────────────────────────────────────────────────────────
+
+class DeliveryServiceOut(BaseModel):
+    id: int
+    name: str
+    name_kz: str
+    price: float
+    days_min: int
+    days_max: int
+
+    model_config = {"from_attributes": True}
+
+
 # ── Orders ────────────────────────────────────────────────────────────────────
 
 class CartItem(BaseModel):
@@ -109,6 +133,7 @@ class OrderCreate(BaseModel):
     delivery_address: str
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
+    delivery_service_id: Optional[int] = None
 
 
 class OrderItemOut(BaseModel):
@@ -129,6 +154,8 @@ class OrderOut(BaseModel):
     delivery_address: Optional[str] = None
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
+    delivery_service: Optional[DeliveryServiceOut] = None
+    delivery_cost: Optional[float] = None
     created_at: datetime
     items: List[OrderItemOut] = []
 
@@ -146,6 +173,16 @@ class SellerOrderOut(BaseModel):
     buyer_email: str
     created_at: datetime
     items: List[OrderItemOut] = []
+
+    model_config = {"from_attributes": True}
+
+
+# ── Order History ─────────────────────────────────────────────────────────────
+
+class OrderStatusHistoryItem(BaseModel):
+    id: int
+    status: str
+    changed_at: datetime
 
     model_config = {"from_attributes": True}
 
@@ -170,10 +207,22 @@ class PlagiarismResult(BaseModel):
     matches: List[PlagiarismMatch]
 
 
+class RevenuePoint(BaseModel):
+    name: str
+    revenue: float
+
+
 class SellerStats(BaseModel):
     total_products: int
     total_orders: int
     total_revenue: float
+    month_revenue: float
+    prev_month_revenue: float
+    cancelled_orders: int
+    returned_orders: int
+    low_stock_count: int
+    revenue_by_day: List[RevenuePoint]
+    revenue_by_week: List[RevenuePoint]
 
 
 # ── Recommendations ───────────────────────────────────────────────────────────

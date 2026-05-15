@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Integer
+from typing import List, Optional
+from pydantic import BaseModel
 
 from database import get_db, SessionLocal
 from models import Order, OrderItem, Product, User, RecommendationLog
-from schemas import AdminStats
+from schemas import AdminStats, UserOut, ProductOut, SellerOrderOut, OrderItemOut
 from auth import require_admin
 from ml.trainer import train_model, get_model_meta
 
@@ -77,3 +79,134 @@ def retrain_model(
         return {"status": "ok", "meta": meta}
     finally:
         db.close()
+
+
+# ── User management ───────────────────────────────────────────────────────────
+
+@router.get("/users", response_model=List[UserOut])
+def get_all_users(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    return db.query(User).order_by(User.created_at.desc()).all()
+
+
+class UserRoleUpdate(BaseModel):
+    is_seller: Optional[bool] = None
+    is_admin: Optional[bool] = None
+
+
+@router.patch("/users/{user_id}", response_model=UserOut)
+def update_user_role(
+    user_id: int,
+    data: UserRoleUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if data.is_seller is not None:
+        user.is_seller = data.is_seller
+    if data.is_admin is not None:
+        user.is_admin = data.is_admin
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    db.delete(user)
+    db.commit()
+    return {"status": "deleted"}
+
+
+# ── Product management ────────────────────────────────────────────────────────
+
+@router.get("/products", response_model=List[ProductOut])
+def get_all_products(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    return db.query(Product).order_by(Product.created_at.desc()).limit(200).all()
+
+
+@router.delete("/products/{product_id}")
+def delete_product(
+    product_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    db.delete(product)
+    db.commit()
+    return {"status": "deleted"}
+
+
+# ── Order management ──────────────────────────────────────────────────────────
+
+class AdminOrderOut(BaseModel):
+    id: int
+    total_amount: float
+    status: str
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    delivery_address: Optional[str] = None
+    buyer_name: str
+    buyer_email: str
+    created_at: str
+    items_count: int
+
+    model_config = {"from_attributes": False}
+
+
+@router.get("/orders")
+def get_all_orders(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    q = db.query(Order)
+    if status:
+        q = q.filter(Order.status == status)
+    orders = q.order_by(Order.created_at.desc()).limit(200).all()
+    result = []
+    for o in orders:
+        result.append({
+            "id": o.id,
+            "total_amount": o.total_amount,
+            "status": o.status,
+            "customer_name": o.customer_name,
+            "customer_phone": o.customer_phone,
+            "delivery_address": o.delivery_address,
+            "buyer_name": o.user.name,
+            "buyer_email": o.user.email,
+            "created_at": o.created_at.isoformat(),
+            "items_count": len(o.items),
+        })
+    return result
+
+
+@router.patch("/orders/{order_id}/status")
+def admin_update_order_status(
+    order_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    order.status = data["status"]
+    db.commit()
+    return {"status": "updated"}

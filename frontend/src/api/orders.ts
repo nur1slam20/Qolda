@@ -1,5 +1,5 @@
 import client from './client'
-import type { Order, SellerOrder } from './types'
+import type { Order, OrderStatusHistory, SellerOrder } from './types'
 
 export const ordersApi = {
   create: (
@@ -7,9 +7,10 @@ export const ordersApi = {
     delivery_address: string,
     customer_name?: string,
     customer_phone?: string,
+    delivery_service_id?: number,
   ) =>
     client
-      .post<Order>('/orders', { items, delivery_address, customer_name, customer_phone })
+      .post<Order>('/orders', { items, delivery_address, customer_name, customer_phone, delivery_service_id })
       .then(r => r.data),
 
   getUserOrders: (userId: number) =>
@@ -20,4 +21,10 @@ export const ordersApi = {
 
   updateStatus: (orderId: number, status: string) =>
     client.patch<SellerOrder>(`/orders/${orderId}/status`, { status }).then(r => r.data),
+
+  getOrderHistory: (orderId: number) =>
+    client.get<OrderStatusHistory[]>(`/orders/${orderId}/history`).then(r => r.data),
+
+  cancelOrder: (orderId: number) =>
+    client.post<Order>(`/orders/${orderId}/cancel`).then(r => r.data),
 }

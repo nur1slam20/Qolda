@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from database import get_db
-from models import Order, OrderItem, Product, User
-from schemas import OrderCreate, OrderOut, OrderItemOut, SellerOrderOut, OrderStatusUpdate
+from models import DeliveryService, Order, OrderItem, OrderStatusHistory, Product, User
+from schemas import OrderCreate, OrderOut, OrderItemOut, SellerOrderOut, OrderStatusUpdate, OrderStatusHistoryItem
 from auth import require_user, require_seller
 
 router = APIRouter()
@@ -35,13 +35,21 @@ def create_order(
         total += effective_price * cart_item.quantity
         order_items.append((product, cart_item.quantity, effective_price))
 
+    delivery_cost = 0.0
+    if data.delivery_service_id:
+        svc = db.query(DeliveryService).filter(DeliveryService.id == data.delivery_service_id).first()
+        if svc:
+            delivery_cost = svc.price
+
     order = Order(
         user_id=current_user.id,
-        total_amount=round(total, 2),
+        total_amount=round(total + delivery_cost, 2),
         status="processing",
         delivery_address=data.delivery_address,
         customer_name=data.customer_name or current_user.name,
         customer_phone=data.customer_phone,
+        delivery_service_id=data.delivery_service_id,
+        delivery_cost=delivery_cost,
     )
     db.add(order)
     db.flush()
@@ -56,6 +64,7 @@ def create_order(
         db.add(item)
         product.stock -= qty
 
+    db.add(OrderStatusHistory(order_id=order.id, status="processing"))
     db.commit()
     db.refresh(order)
     return OrderOut.model_validate(order)
@@ -133,6 +142,7 @@ def update_order_status(
         raise HTTPException(status_code=403, detail="Forbidden")
 
     order.status = data.status
+    db.add(OrderStatusHistory(order_id=order.id, status=data.status))
     db.commit()
     db.refresh(order)
 
@@ -147,6 +157,45 @@ def update_order_status(
         buyer_email=order.user.email,
         created_at=order.created_at,
         items=[OrderItemOut.model_validate(item) for item in order.items],
+    )
+
+
+@router.post("/{order_id}/cancel", response_model=OrderOut)
+def cancel_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_user),
+):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if order.status in ("completed", "shipped", "cancelled"):
+        raise HTTPException(status_code=400, detail="Cannot cancel order with status: " + order.status)
+    order.status = "cancelled"
+    db.add(OrderStatusHistory(order_id=order.id, status="cancelled"))
+    db.commit()
+    db.refresh(order)
+    return OrderOut.model_validate(order)
+
+
+@router.get("/{order_id}/history", response_model=List[OrderStatusHistoryItem])
+def get_order_history(
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_user),
+):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.user_id != current_user.id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return (
+        db.query(OrderStatusHistory)
+        .filter(OrderStatusHistory.order_id == order_id)
+        .order_by(OrderStatusHistory.changed_at)
+        .all()
     )
 
 

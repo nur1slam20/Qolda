@@ -37,6 +37,7 @@ export interface ProductCreate {
   discount_price?: number
   image_url?: string
   stock: number
+  tags?: string
 }
 
 export interface ProductList {
@@ -72,6 +73,8 @@ export interface Order {
   delivery_address?: string
   customer_name?: string
   customer_phone?: string
+  delivery_service?: DeliveryService
+  delivery_cost?: number
   created_at: string
   items: OrderItem[]
 }
@@ -89,10 +92,22 @@ export interface SellerOrder {
   items: OrderItem[]
 }
 
+export interface RevenuePoint {
+  name: string
+  revenue: number
+}
+
 export interface SellerStats {
   total_products: number
   total_orders: number
   total_revenue: number
+  month_revenue: number
+  prev_month_revenue: number
+  cancelled_orders: number
+  returned_orders: number
+  low_stock_count: number
+  revenue_by_day: RevenuePoint[]
+  revenue_by_week: RevenuePoint[]
 }
 
 export interface Recommendation {
@@ -114,6 +129,21 @@ export interface PlagiarismResult {
   status: 'verified' | 'suspicious' | 'high_risk'
   max_similarity: number
   matches: PlagiarismMatch[]
+}
+
+export interface DeliveryService {
+  id: number
+  name: string
+  name_kz: string
+  price: number
+  days_min: number
+  days_max: number
+}
+
+export interface OrderStatusHistory {
+  id: number
+  status: string
+  changed_at: string
 }
 
 export interface AdminStats {

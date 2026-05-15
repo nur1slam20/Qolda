@@ -68,7 +68,7 @@ def create_product(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_seller),
 ):
-    combined = f"{data.name_ru} {data.name_kz} {data.category} {data.description_ru or ''}"
+    combined = f"{data.name_ru} {data.name_kz} {data.category} {data.description_ru or ''} {data.tags or ''}"
     product = Product(
         name_ru=data.name_ru,
         name_kz=data.name_kz,
@@ -80,6 +80,7 @@ def create_product(
         discount_price=data.discount_price,
         image_url=data.image_url,
         stock=data.stock,
+        tags=data.tags,
         seller_id=current_user.id,
         combined_text=combined.strip(),
     )

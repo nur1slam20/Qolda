@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Search, Filter, Download, ChevronDown } from 'lucide-react'
 import { ordersApi } from '../../api/orders'
 import type { SellerOrder } from '../../api/types'
+import { exportCsv } from '../../utils/exportCsv'
+import { toast } from '../../store/toastStore'
 
 function fmt(n: number) { return n.toLocaleString('ru-KZ') + ' ₸' }
 
@@ -116,6 +118,23 @@ export default function SellerOrders() {
 
   const handleUpdate = (updated: SellerOrder) => {
     setOrders(prev => prev.map(o => o.id === updated.id ? updated : o))
+    toast.success('Статус заказа обновлён')
+  }
+
+  const handleExport = () => {
+    exportCsv(`orders_${new Date().toISOString().slice(0,10)}.csv`,
+      ['ID', 'Клиент', 'Email', 'Телефон', 'Статус', 'Сумма', 'Дата'],
+      orders.map(o => [
+        `#ORD-${o.id}`,
+        o.customer_name || o.buyer_name,
+        o.buyer_email,
+        o.customer_phone ?? '',
+        ST[o.status]?.label ?? o.status,
+        o.total_amount,
+        new Date(o.created_at).toLocaleDateString('ru-RU'),
+      ])
+    )
+    toast.success('CSV-файл скачан')
   }
 
   useEffect(() => {
@@ -215,7 +234,7 @@ export default function SellerOrders() {
             <button className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
               <Filter size={12} /> Фильтры
             </button>
-            <button className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
+            <button onClick={handleExport} className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50">
               <Download size={12} /> Экспорт
             </button>
           </div>

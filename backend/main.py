@@ -6,7 +6,7 @@ import logging
 
 from database import engine, SessionLocal, Base, migrate_db
 import models  # noqa: F401 — registers all tables
-from routers import auth, products, recommendations, orders, reviews, admin, seller
+from routers import auth, products, recommendations, orders, reviews, admin, seller, ai, delivery, messages
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -75,6 +75,9 @@ app.include_router(orders.router, prefix="/api/orders", tags=["orders"])
 app.include_router(reviews.router, prefix="/api/reviews", tags=["reviews"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(seller.router, prefix="/api/seller", tags=["seller"])
+app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
+app.include_router(delivery.router, prefix="/api/delivery-services", tags=["delivery"])
+app.include_router(messages.router, prefix="/api/messages", tags=["messages"])
 
 
 @app.get("/")

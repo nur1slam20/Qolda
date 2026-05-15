@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { TrendingUp, ShoppingBag, Users, CreditCard, Plus, Star, Activity, Package } from 'lucide-react'
+import { TrendingUp, ShoppingBag, CreditCard, Plus, Star, Package, XCircle, RotateCcw, Users } from 'lucide-react'
 import { sellerApi } from '../../api/seller'
 import { ordersApi } from '../../api/orders'
 import type { SellerStats, SellerOrder } from '../../api/types'
@@ -21,8 +21,6 @@ function timeAgo(iso: string) {
   if (h < 24) return `${h} ч. назад`
   return d.toLocaleDateString('ru-KZ', { day: '2-digit', month: 'short' })
 }
-
-const DAYS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 
 const ST: Record<string, { dot: string; label: string }> = {
   processing: { dot: 'bg-blue-500',   label: 'В обработке' },
@@ -45,35 +43,18 @@ export default function SellerDashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  const avgCheck   = stats && stats.total_orders > 0 ? Math.round(stats.total_revenue / stats.total_orders) : 0
+  const avgCheck     = stats && stats.total_orders > 0 ? Math.round(stats.total_revenue / stats.total_orders) : 0
   const activeOrders = orders.filter(o => o.status === 'processing' || o.status === 'pending').length
   const uniqueBuyers = new Set(orders.map(o => o.buyer_email)).size
 
-  const weekData = DAYS.map((name, i) => ({
-    name,
-    revenue: orders
-      .filter(o => new Date(o.created_at).getDay() === i)
-      .reduce((s, o) => s + o.total_amount, 0),
-  }))
+  const monthGrowth = stats && stats.prev_month_revenue > 0
+    ? (((stats.month_revenue - stats.prev_month_revenue) / stats.prev_month_revenue) * 100).toFixed(1)
+    : null
 
-  const monthData = Array.from({ length: 4 }, (_, i) => {
-    const now = new Date()
-    const weekStart = new Date(now)
-    weekStart.setDate(now.getDate() - (3 - i) * 7)
-    const weekEnd = new Date(weekStart)
-    weekEnd.setDate(weekStart.getDate() + 7)
-    return {
-      name: `Нед ${i + 1}`,
-      revenue: orders
-        .filter(o => {
-          const d = new Date(o.created_at)
-          return d >= weekStart && d < weekEnd
-        })
-        .reduce((s, o) => s + o.total_amount, 0),
-    }
-  })
+  const chartData = chartMode === 'week'
+    ? (stats?.revenue_by_day ?? [])
+    : (stats?.revenue_by_week ?? [])
 
-  const chartData = chartMode === 'week' ? weekData : monthData
   const recentOrders = orders.slice(0, 5)
 
   const topProductMap = orders.reduce((acc: Record<string, number>, o) => {
@@ -84,10 +65,6 @@ export default function SellerDashboard() {
     return acc
   }, {})
   const bestSeller = Object.entries(topProductMap).sort((a, b) => b[1] - a[1])[0]?.[0]
-  const lowStockCount = orders.reduce((acc, o) => {
-    o.items.forEach(item => { if (item.product && item.product.stock <= 10) acc.add(item.product.name_ru) })
-    return acc
-  }, new Set<string>()).size
 
   if (loading) {
     return (
@@ -113,46 +90,41 @@ export default function SellerDashboard() {
           to="/seller/add-product"
           className="flex items-center gap-2 bg-[#004B57] hover:bg-[#003840] text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors shadow-sm"
         >
-          <Plus size={15} /> Создать заказ
+          <Plus size={15} /> Добавить товар
         </Link>
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {[
           {
             label: 'Продажи за месяц',
-            value: fmt(stats?.total_revenue ?? 0),
-            badge: '+10.5%',
-            badgeCls: 'bg-green-100 text-green-600',
+            value: fmt(stats?.month_revenue ?? 0),
+            badge: monthGrowth !== null ? `${Number(monthGrowth) >= 0 ? '+' : ''}${monthGrowth}%` : 'Нет данных',
+            badgeCls: monthGrowth !== null && Number(monthGrowth) >= 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500',
             icon: TrendingUp,
             iconCls: 'bg-[#004B57]/10 text-[#004B57]',
+            sub: `Всего: ${fmt(stats?.total_revenue ?? 0)}`,
           },
           {
             label: 'Активные заказы',
             value: activeOrders,
-            badge: `${Math.max(0, activeOrders - 1)} работы`,
-            badgeCls: 'bg-gray-100 text-gray-500',
+            badge: stats?.cancelled_orders ? `${stats.cancelled_orders} отмен` : 'Без отмен',
+            badgeCls: stats?.cancelled_orders ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-500',
             icon: ShoppingBag,
             iconCls: 'bg-amber-50 text-amber-500',
-          },
-          {
-            label: 'Новые клиенты',
-            value: uniqueBuyers,
-            badge: `+${Math.max(0, uniqueBuyers - 1)}`,
-            badgeCls: 'bg-blue-50 text-blue-500',
-            icon: Users,
-            iconCls: 'bg-blue-50 text-blue-500',
+            sub: `Всего заказов: ${stats?.total_orders ?? 0}`,
           },
           {
             label: 'Средний чек',
             value: fmt(avgCheck),
-            badge: '90%',
-            badgeCls: 'bg-green-100 text-green-600',
+            badge: `${uniqueBuyers} покупателей`,
+            badgeCls: 'bg-blue-50 text-blue-500',
             icon: CreditCard,
             iconCls: 'bg-green-50 text-green-600',
+            sub: `Возвраты: ${stats?.returned_orders ?? 0}`,
           },
-        ].map(({ label, value, badge, badgeCls, icon: Icon, iconCls }) => (
+        ].map(({ label, value, badge, badgeCls, icon: Icon, iconCls, sub }) => (
           <div key={label} className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm relative">
             <span className={`absolute top-4 right-4 text-xs font-semibold px-2 py-0.5 rounded-full ${badgeCls}`}>
               {badge}
@@ -162,6 +134,26 @@ export default function SellerDashboard() {
             </div>
             <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
             <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
+            <p className="text-xs text-gray-400 mt-1">{sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Cancellations + Returns + Low stock row */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { label: 'Отмены', value: stats?.cancelled_orders ?? 0, icon: XCircle,    cls: 'text-red-500',   bg: 'bg-red-50'    },
+          { label: 'Возвраты', value: stats?.returned_orders ?? 0,  icon: RotateCcw,  cls: 'text-amber-500', bg: 'bg-amber-50'  },
+          { label: 'Мало на складе', value: stats?.low_stock_count ?? 0, icon: Package, cls: 'text-[#004B57]', bg: 'bg-[#004B57]/10' },
+        ].map(({ label, value, icon: Icon, cls, bg }) => (
+          <div key={label} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm flex items-center gap-3">
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${bg}`}>
+              <Icon size={17} className={cls} />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">{label}</p>
+              <p className={`text-xl font-bold ${value > 0 ? cls : 'text-gray-900'}`}>{value}</p>
+            </div>
           </div>
         ))}
       </div>
@@ -230,8 +222,8 @@ export default function SellerDashboard() {
             <div className="bg-white/10 rounded-xl p-3.5">
               <p className="text-xs font-semibold text-white/60 uppercase tracking-wide mb-1.5">Популярное</p>
               <p className="text-xs text-white/90 leading-relaxed">
-                {lowStockCount > 0
-                  ? `${lowStockCount} ${lowStockCount === 1 ? 'товар заканчивается' : 'товара заканчиваются'}. Подумайте о расширении линейки.`
+                {(stats?.low_stock_count ?? 0) > 0
+                  ? `${stats!.low_stock_count} ${stats!.low_stock_count === 1 ? 'товар заканчивается' : 'товара заканчиваются'}. Подумайте о расширении линейки.`
                   : 'Все товары в достаточном количестве на складе.'}
               </p>
             </div>

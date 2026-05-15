@@ -8,6 +8,9 @@ import { productsApi } from '../../api/products'
 import { ordersApi } from '../../api/orders'
 import type { Product, SellerOrder, PlagiarismResult } from '../../api/types'
 import ProductImage from '../../components/ProductImage'
+import { confirm } from '../../components/ConfirmDialog'
+import { toast } from '../../store/toastStore'
+import { exportCsv } from '../../utils/exportCsv'
 
 function fmt(n: number) { return n.toLocaleString('ru-KZ') + ' ₸' }
 
@@ -102,11 +105,20 @@ export default function SellerProducts() {
   useEffect(() => { load() }, [])
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Удалить «${name}»?`)) return
+    if (!await confirm(`Удалить «${name}»? Это действие необратимо.`)) return
     try {
       await productsApi.delete(id)
       setProducts(prev => prev.filter(p => p.id !== id))
-    } catch { alert('Не удалось удалить товар') }
+      toast.success(`«${name}» удалён`)
+    } catch { toast.error('Не удалось удалить товар') }
+  }
+
+  const handleExport = () => {
+    exportCsv('products.csv',
+      ['ID', 'Название', 'SKU', 'Категория', 'Цена', 'Скидка', 'Остаток'],
+      products.map(p => [p.id, p.name_ru, genSKU(p), p.category, p.price, p.discount_price ?? '', p.stock])
+    )
+    toast.success('CSV-файл скачан')
   }
 
   const handlePlagiarismCheck = async (id: number) => {
@@ -196,7 +208,7 @@ export default function SellerProducts() {
           <button className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors">
             <Filter size={13} /> Фильтры
           </button>
-          <button className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors">
+          <button onClick={handleExport} className="flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors">
             <Download size={13} /> Экспорт
           </button>
           {outStock > 0 && (

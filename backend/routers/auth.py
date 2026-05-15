@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import User
-from schemas import UserRegister, UserLogin, Token, UserOut
-from auth import verify_password, get_password_hash, create_access_token
+from schemas import UserRegister, UserLogin, Token, UserOut, UserUpdate, PasswordChange
+from auth import verify_password, get_password_hash, create_access_token, require_user
 
 router = APIRouter()
 
@@ -39,3 +39,39 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
         )
     token = create_access_token({"sub": str(user.id)})
     return Token(access_token=token, token_type="bearer", user=UserOut.model_validate(user))
+
+
+@router.get("/me", response_model=UserOut)
+def get_me(current_user: User = Depends(require_user)):
+    return UserOut.model_validate(current_user)
+
+
+@router.put("/me", response_model=UserOut)
+def update_me(
+    data: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_user),
+):
+    if data.email and data.email != current_user.email:
+        existing = db.query(User).filter(User.email == data.email).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        current_user.email = data.email
+    if data.name:
+        current_user.name = data.name
+    db.commit()
+    db.refresh(current_user)
+    return UserOut.model_validate(current_user)
+
+
+@router.put("/password")
+def change_password(
+    data: PasswordChange,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_user),
+):
+    if not verify_password(data.current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Неверный текущий пароль")
+    current_user.password_hash = get_password_hash(data.new_password)
+    db.commit()
+    return {"ok": True}

@@ -6,6 +6,7 @@ import { useCartStore } from '../store/cartStore'
 import { useWishlistStore } from '../store/wishlistStore'
 import { toast } from '../store/toastStore'
 import ProductImage from './ProductImage'
+import { useT } from '../utils/i18n'
 
 interface Props {
   product: Product
@@ -19,6 +20,7 @@ export default function ProductCard({ product }: Props) {
   const addItem  = useCartStore(s => s.addItem)
   const { toggle, has } = useWishlistStore()
   const wished   = has(product.id)
+  const t = useT()
 
   const discountPct = product.discount_price
     ? Math.round((1 - product.discount_price / product.price) * 100)
@@ -27,7 +29,7 @@ export default function ProductCard({ product }: Props) {
   const handleCart = (e: React.MouseEvent) => {
     e.preventDefault()
     addItem(product)
-    toast.success(`«${product.name_ru}» себетке қосылды`)
+    toast.success(`«${product.name_ru}» ${t('cart').toLowerCase()}қа қосылды`)
   }
 
   const handleWish = (e: React.MouseEvent) => {
@@ -39,7 +41,7 @@ export default function ProductCard({ product }: Props) {
 
   return (
     <div className="card group flex flex-col hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 overflow-hidden">
-      <Link to={`/product/${product.id}`} className="relative block overflow-hidden bg-gray-50">
+      <Link to={`/product/${product.id}`} className="relative block overflow-hidden bg-gray-50 dark:bg-gray-800">
         <ProductImage
           src={product.image_url}
           alt={product.name_ru}
@@ -51,31 +53,30 @@ export default function ProductCard({ product }: Props) {
             -{discountPct}%
           </span>
         )}
-        {/* Wishlist heart */}
         <button
           onClick={handleWish}
           className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center shadow-sm transition-all ${
             wished
               ? 'bg-red-500 text-white'
-              : 'bg-white/90 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100'
+              : 'bg-white/90 dark:bg-gray-700/90 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100'
           }`}
         >
           <Heart size={13} className={wished ? 'fill-white' : ''} />
         </button>
         {product.stock === 0 && (
-          <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
-            <span className="text-xs font-semibold text-gray-500 bg-white px-3 py-1 rounded-full border">
-              Нет в наличии
+          <div className="absolute inset-0 bg-white/70 dark:bg-gray-900/70 flex items-center justify-center">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-300 bg-white dark:bg-gray-800 px-3 py-1 rounded-full border dark:border-gray-700">
+              {t('out_of_stock')}
             </span>
           </div>
         )}
       </Link>
 
       <div className="p-4 flex flex-col flex-1">
-        <p className="text-xs text-[#004B57]/70 font-medium mb-1">{product.category}</p>
+        <p className="text-xs text-[#004B57]/70 dark:text-teal-400 font-medium mb-1">{product.category}</p>
         <Link
           to={`/product/${product.id}`}
-          className="text-sm font-semibold text-gray-900 hover:text-[#004B57] line-clamp-2 flex-1 mb-2 leading-snug transition-colors"
+          className="text-sm font-semibold text-gray-900 dark:text-gray-100 hover:text-[#004B57] dark:hover:text-teal-400 line-clamp-2 flex-1 mb-2 leading-snug transition-colors"
         >
           {product.name_ru}
         </Link>
@@ -86,11 +87,11 @@ export default function ProductCard({ product }: Props) {
           <div>
             {product.discount_price ? (
               <div>
-                <span className="font-bold text-gray-900 text-base">{formatPrice(product.discount_price)}</span>
+                <span className="font-bold text-gray-900 dark:text-white text-base">{formatPrice(product.discount_price)}</span>
                 <span className="text-xs text-gray-400 line-through ml-1.5">{formatPrice(product.price)}</span>
               </div>
             ) : (
-              <span className="font-bold text-gray-900 text-base">{formatPrice(product.price)}</span>
+              <span className="font-bold text-gray-900 dark:text-white text-base">{formatPrice(product.price)}</span>
             )}
           </div>
           <button
@@ -99,7 +100,7 @@ export default function ProductCard({ product }: Props) {
             className="flex items-center gap-1.5 bg-[#004B57] hover:bg-[#003840] text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-40 flex-shrink-0"
           >
             <ShoppingCart size={13} />
-            <span className="hidden sm:inline">Себет</span>
+            <span className="hidden sm:inline">{t('add_to_cart')}</span>
           </button>
         </div>
 

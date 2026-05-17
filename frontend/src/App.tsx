@@ -26,12 +26,19 @@ import SellerWarehouse from './pages/seller/SellerWarehouse'
 import SellerChat from './pages/seller/SellerChat'
 import SellerSettings from './pages/seller/SellerSettings'
 import { useUserStore } from './store/userStore'
+import FloatingCart from './components/FloatingCart'
+import MotionBackground from './components/MotionBackground'
+import { initTheme } from './store/themeStore'
+import { useLocationStore } from './store/locationStore'
+import { useEffect } from 'react'
+
+initTheme()
 
 function AuthLayout() {
   const user = useUserStore(s => s.user)
   if (!user) return <Navigate to="/login" replace />
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-200">
       <Header />
       <main className="flex-1">
         <Outlet />
@@ -54,6 +61,9 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const detect = useLocationStore(s => s.detect)
+  useEffect(() => { detect() }, [])
+
   return (
     <BrowserRouter>
       <Routes>
@@ -94,9 +104,11 @@ export default function App() {
         <Route path="*" element={<NotFound />} />
       </Routes>
 
+      <MotionBackground />
       {/* Global overlays */}
       <Toasts />
       <ConfirmDialog />
+      <FloatingCart />
     </BrowserRouter>
   )
 }

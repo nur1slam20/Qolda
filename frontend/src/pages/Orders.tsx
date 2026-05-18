@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { XCircle, Package, Truck, CheckCircle2, Clock, RotateCcw } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { XCircle, Package, Truck, CheckCircle2, Clock, RotateCcw, ShoppingCart } from 'lucide-react'
 import type { Order, OrderStatusHistory } from '../api/types'
 import { ordersApi } from '../api/orders'
 import { useUserStore } from '../store/userStore'
+import { useCartStore } from '../store/cartStore'
 import { toast } from '../store/toastStore'
 import { confirm } from '../components/ConfirmDialog'
 import ProductImage from '../components/ProductImage'
@@ -23,9 +24,22 @@ const STATUS_LABELS: Record<string, { label: string; color: string; dot: string 
   returned:   { label: 'Возврат',    color: 'bg-gray-100 text-gray-600',     dot: 'bg-gray-400'   },
 }
 
-function fmt(n: number) {
-  return n.toLocaleString('ru-KZ') + ' ₸'
+const FILTER_TABS = [
+  { key: 'all',        label: 'Все' },
+  { key: 'active',     label: 'Активные' },
+  { key: 'completed',  label: 'Доставлен' },
+  { key: 'cancelled',  label: 'Отменён' },
+]
+
+function matchFilter(status: string, filter: string) {
+  if (filter === 'all')       return true
+  if (filter === 'active')    return ['pending', 'processing', 'shipped'].includes(status)
+  if (filter === 'completed') return status === 'completed'
+  if (filter === 'cancelled') return status === 'cancelled' || status === 'returned'
+  return false
 }
+
+function fmt(n: number) { return n.toLocaleString('ru-KZ') + ' ₸' }
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleString('ru-RU', {
@@ -51,7 +65,7 @@ function OrderProgress({ status }: { status: string }) {
   return (
     <div className="flex items-center gap-0">
       {STEPS.map((step, idx) => {
-        const Icon = step.icon
+        const Icon    = step.icon
         const done    = idx < activeIdx
         const current = idx === activeIdx
         const isLast  = idx === STEPS.length - 1
@@ -80,11 +94,16 @@ function OrderProgress({ status }: { status: string }) {
 }
 
 export default function Orders() {
-  const user = useUserStore(s => s.user)
+  const user     = useUserStore(s => s.user)
+  const addItem  = useCartStore(s => s.addItem)
+  const navigate = useNavigate()
+
   const [orders, setOrders]       = useState<Order[]>([])
   const [loading, setLoading]     = useState(true)
   const [expanded, setExpanded]   = useState<number | null>(null)
   const [histories, setHistories] = useState<Record<number, OrderStatusHistory[]>>({})
+  const [filter, setFilter]       = useState('all')
+  const [reordering, setReordering] = useState<number | null>(null)
 
   useEffect(() => {
     if (!user) return
@@ -117,6 +136,24 @@ export default function Orders() {
     }
   }
 
+  const handleReorder = async (order: Order) => {
+    if (!order.items.length) return
+    setReordering(order.id)
+    try {
+      for (const item of order.items) {
+        if (item.product) {
+          await addItem(item.product, item.quantity)
+        }
+      }
+      toast.success('Тауарлар себетке қосылды / Товары добавлены в корзину')
+      navigate('/cart')
+    } catch {
+      toast.error('Қайта тапсырыс беру мүмкін болмады / Не удалось повторить заказ')
+    } finally {
+      setReordering(null)
+    }
+  }
+
   const toggleOrder = async (orderId: number) => {
     if (expanded === orderId) { setExpanded(null); return }
     setExpanded(orderId)
@@ -130,6 +167,8 @@ export default function Orders() {
     }
   }
 
+  const filtered = orders.filter(o => matchFilter(o.status, filter))
+
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-12 space-y-4">
@@ -142,24 +181,54 @@ export default function Orders() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">
+      <h1 className="text-2xl font-bold mb-5">
         Тапсырыстарым / <span className="text-gray-500">Мои заказы</span>
       </h1>
 
-      {orders.length === 0 ? (
+      {/* Filter tabs */}
+      {orders.length > 0 && (
+        <div className="flex gap-1 mb-5 bg-gray-100 rounded-xl p-1">
+          {FILTER_TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setFilter(t.key)}
+              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+                filter === t.key
+                  ? 'bg-white text-[#004B57] shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t.label}
+              {t.key !== 'all' && (
+                <span className="ml-1 text-xs opacity-60">
+                  {orders.filter(o => matchFilter(o.status, t.key)).length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
         <div className="text-center py-20 text-gray-400">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <Package size={28} className="text-gray-300" />
           </div>
-          <p className="font-medium text-gray-500 mb-1">Тапсырыстар жоқ / Заказов пока нет</p>
-          <p className="text-sm">Сделайте первый заказ в каталоге</p>
-          <Link to="/" className="inline-block mt-4 px-5 py-2.5 bg-[#004B57] text-white font-semibold rounded-xl text-sm hover:bg-[#003840] transition-colors">
-            Сатып алуға / В магазин
-          </Link>
+          {filter === 'all' ? (
+            <>
+              <p className="font-medium text-gray-500 mb-1">Тапсырыстар жоқ / Заказов пока нет</p>
+              <p className="text-sm">Сделайте первый заказ в каталоге</p>
+              <Link to="/" className="inline-block mt-4 px-5 py-2.5 bg-[#004B57] text-white font-semibold rounded-xl text-sm hover:bg-[#003840] transition-colors">
+                Сатып алуға / В магазин
+              </Link>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">Нет заказов в этой категории</p>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
-          {orders.map(order => {
+          {filtered.map(order => {
             const statusInfo = STATUS_LABELS[order.status] ?? { label: order.status, color: 'bg-gray-100 text-gray-600', dot: 'bg-gray-400' }
             const isExpanded = expanded === order.id
             const history    = histories[order.id] ?? []
@@ -185,8 +254,23 @@ export default function Orders() {
                       {statusInfo.label}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between sm:justify-end gap-3">
+
+                  <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap">
                     <span className="font-bold text-[#004B57]">{fmt(order.total_amount)}</span>
+
+                    {/* Repeat order */}
+                    {order.status === 'completed' && (
+                      <button
+                        onClick={e => { e.stopPropagation(); handleReorder(order) }}
+                        disabled={reordering === order.id}
+                        className="flex items-center gap-1 text-xs text-[#004B57] hover:text-[#003840] border border-[#004B57]/30 hover:border-[#004B57] px-2.5 py-1 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        <ShoppingCart size={12} />
+                        {reordering === order.id ? '...' : 'Заказать снова'}
+                      </button>
+                    )}
+
+                    {/* Cancel */}
                     {['pending', 'processing'].includes(order.status) && (
                       <button
                         onClick={e => { e.stopPropagation(); handleCancel(order.id) }}
@@ -195,6 +279,8 @@ export default function Orders() {
                         <XCircle size={12} /> Отменить
                       </button>
                     )}
+
+                    {/* Return */}
                     {order.status === 'completed' && (
                       <button
                         onClick={e => { e.stopPropagation(); handleReturn(order.id) }}
@@ -203,6 +289,7 @@ export default function Orders() {
                         <RotateCcw size={12} /> Вернуть
                       </button>
                     )}
+
                     <span className="text-gray-300 text-sm">{isExpanded ? '▲' : '▼'}</span>
                   </div>
                 </div>
@@ -238,18 +325,14 @@ export default function Orders() {
                     {/* Status history timeline */}
                     {history.length > 0 && (
                       <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                          История изменений
-                        </p>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">История изменений</p>
                         <div className="relative pl-5 space-y-0">
                           {history.map((h, idx) => {
                             const si     = STATUS_LABELS[h.status] ?? { label: h.status, dot: 'bg-gray-400' }
                             const isLast = idx === history.length - 1
                             return (
                               <div key={h.id} className="relative flex items-start gap-3 pb-3 last:pb-0">
-                                {!isLast && (
-                                  <div className="absolute left-[-13px] top-4 bottom-0 w-px bg-gray-200" />
-                                )}
+                                {!isLast && <div className="absolute left-[-13px] top-4 bottom-0 w-px bg-gray-200" />}
                                 <div className={`absolute left-[-17px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white ${si.dot}`} />
                                 <div>
                                   <p className="text-sm font-medium text-gray-900">{si.label}</p>

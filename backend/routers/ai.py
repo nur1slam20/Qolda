@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Optional
+from typing import List, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,7 +16,7 @@ _API_URL = "https://api.anthropic.com/v1/messages"
 _MODEL   = "claude-3-haiku-20240307"
 
 
-async def _claude(messages: list[dict], system: str = "") -> str:
+async def _claude(messages: List[dict], system: str = "") -> str:
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
     if not api_key:
         raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY не настроен")

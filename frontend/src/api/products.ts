@@ -31,4 +31,7 @@ export const productsApi = {
 
   recentlyViewed: (limit = 8) =>
     client.get<Product[]>('/products/recently-viewed', { params: { limit } }).then(r => r.data),
+
+  updateStock: (id: number, stock: number) =>
+    client.patch<Product>(`/products/${id}/stock`, { stock }).then(r => r.data),
 }

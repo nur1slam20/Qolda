@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { AlertTriangle, Package, TrendingDown, CheckCircle } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { AlertTriangle, Package, TrendingDown, CheckCircle, Pencil, Check, X } from 'lucide-react'
 import { productsApi } from '../../api/products'
 import type { Product } from '../../api/types'
 
@@ -7,11 +7,97 @@ const LOW_STOCK = 10
 const CRITICAL_STOCK = 3
 
 function StockBadge({ stock }: { stock: number }) {
+  if (stock === 0)
+    return <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">Нет в наличии</span>
   if (stock <= CRITICAL_STOCK)
     return <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full"><AlertTriangle size={10} /> Критично</span>
   if (stock <= LOW_STOCK)
     return <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full"><TrendingDown size={10} /> Мало</span>
   return <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full"><CheckCircle size={10} /> В наличии</span>
+}
+
+function StockCell({ product, onUpdated }: { product: Product; onUpdated: (id: number, stock: number) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(String(product.stock))
+  const [saving, setSaving] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const startEdit = () => {
+    setValue(String(product.stock))
+    setEditing(true)
+    setTimeout(() => inputRef.current?.select(), 0)
+  }
+
+  const cancel = () => {
+    setEditing(false)
+    setValue(String(product.stock))
+  }
+
+  const save = async () => {
+    const newStock = parseInt(value, 10)
+    if (isNaN(newStock) || newStock < 0) {
+      cancel()
+      return
+    }
+    setSaving(true)
+    try {
+      await productsApi.updateStock(product.id, newStock)
+      onUpdated(product.id, newStock)
+      setEditing(false)
+    } catch {
+      cancel()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') save()
+    if (e.key === 'Escape') cancel()
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1 justify-center">
+        <input
+          ref={inputRef}
+          type="number"
+          min={0}
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={onKeyDown}
+          disabled={saving}
+          className="w-16 text-center border border-[#004B57] rounded-lg text-sm font-bold py-0.5 outline-none focus:ring-2 focus:ring-[#004B57]/20"
+        />
+        <button onClick={save} disabled={saving} className="text-green-600 hover:text-green-700 p-0.5">
+          <Check size={15} />
+        </button>
+        <button onClick={cancel} disabled={saving} className="text-gray-400 hover:text-gray-600 p-0.5">
+          <X size={15} />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 justify-center group">
+      <span className={`text-lg font-bold ${
+        product.stock === 0 ? 'text-gray-400' :
+        product.stock <= CRITICAL_STOCK ? 'text-red-600' :
+        product.stock <= LOW_STOCK ? 'text-amber-600' : 'text-gray-900'
+      }`}>
+        {product.stock}
+      </span>
+      <span className="text-xs text-gray-400">шт.</span>
+      <button
+        onClick={startEdit}
+        className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-[#004B57] p-0.5"
+        title="Изменить остаток"
+      >
+        <Pencil size={12} />
+      </button>
+    </div>
+  )
 }
 
 export default function SellerWarehouse() {
@@ -25,6 +111,10 @@ export default function SellerWarehouse() {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
+
+  const handleStockUpdated = (id: number, newStock: number) => {
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, stock: newStock } : p))
+  }
 
   const critical = products.filter(p => p.stock <= CRITICAL_STOCK)
   const low      = products.filter(p => p.stock > CRITICAL_STOCK && p.stock <= LOW_STOCK)
@@ -40,7 +130,7 @@ export default function SellerWarehouse() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Склад</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Контроль остатков товаров</p>
+        <p className="text-sm text-gray-400 mt-0.5">Контроль остатков товаров · нажмите на карандаш для пополнения</p>
       </div>
 
       {/* Stats */}
@@ -78,7 +168,7 @@ export default function SellerWarehouse() {
                 ? `${critical.length} товар(ов) на грани окончания — пополните склад`
                 : `${low.length} товар(ов) заканчивается`}
             </p>
-            <p className="text-xs text-gray-500 mt-0.5">Перейдите в «Товары» для обновления остатков</p>
+            <p className="text-xs text-gray-500 mt-0.5">Наведите на остаток и нажмите карандаш для изменения</p>
           </div>
         </div>
       )}
@@ -132,7 +222,9 @@ export default function SellerWarehouse() {
                   <div
                     key={product.id}
                     className={`grid grid-cols-12 gap-3 px-5 py-3.5 items-center transition-colors ${
-                      product.stock <= CRITICAL_STOCK ? 'bg-red-50/30' : product.stock <= LOW_STOCK ? 'bg-amber-50/30' : 'hover:bg-gray-50/50'
+                      product.stock === 0 ? 'bg-gray-50/50' :
+                      product.stock <= CRITICAL_STOCK ? 'bg-red-50/30' :
+                      product.stock <= LOW_STOCK ? 'bg-amber-50/30' : 'hover:bg-gray-50/50'
                     }`}
                   >
                     <div className="col-span-5">
@@ -140,14 +232,8 @@ export default function SellerWarehouse() {
                       <p className="text-xs text-gray-400 truncate">{product.name_kz}</p>
                     </div>
                     <div className="col-span-2 text-xs text-gray-500">{product.category}</div>
-                    <div className="col-span-2 text-center">
-                      <span className={`text-lg font-bold ${
-                        product.stock <= CRITICAL_STOCK ? 'text-red-600' :
-                        product.stock <= LOW_STOCK ? 'text-amber-600' : 'text-gray-900'
-                      }`}>
-                        {product.stock}
-                      </span>
-                      <p className="text-xs text-gray-400">шт.</p>
+                    <div className="col-span-2">
+                      <StockCell product={product} onUpdated={handleStockUpdated} />
                     </div>
                     <div className="col-span-2">
                       <StockBadge stock={product.stock} />

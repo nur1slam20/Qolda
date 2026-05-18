@@ -25,6 +25,10 @@ async def lifespan(app: FastAPI):
 
     db = SessionLocal()
     try:
+<<<<<<< main
+=======
+        # Auto-seed if database is empty (first deployment)
+>>>>>>> main
         from models import Product as ProductModel
         if db.query(ProductModel).count() == 0:
             logger.info("Empty database — running seed data...")
@@ -35,6 +39,10 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.warning(f"Auto-seed failed: {e}")
 
+<<<<<<< main
+=======
+        # Load or train ML model
+>>>>>>> main
         try:
             from ml.trainer import load_or_train
             load_or_train(db)
@@ -50,7 +58,11 @@ async def lifespan(app: FastAPI):
 _cors_env = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000")
 if _cors_env.strip() == "*":
     _origins = ["*"]
+<<<<<<< main
     _credentials = False
+=======
+    _credentials = False          # browser blocks credentials with wildcard origin
+>>>>>>> main
 else:
     _origins = [o.strip() for o in _cors_env.split(",")]
     _credentials = True
@@ -94,8 +106,11 @@ app.include_router(promo.router,           prefix="/api/promo",            tags=
 @app.get("/")
 def root():
     return {"message": "QOLDA API is running", "docs": "/docs"}
+<<<<<<< main
 
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+=======
+>>>>>>> main

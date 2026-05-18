@@ -1,4 +1,4 @@
-# ShopAI — Intelligent E-Commerce with Hybrid ML Recommendations
+# QolDa — Intelligent E-Commerce with Hybrid ML Recommendations
 
 **Дипломдық жоба / Дипломный проект**
 

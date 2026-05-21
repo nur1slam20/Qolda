@@ -35,7 +35,21 @@ import { useEffect } from 'react'
 
 initTheme()
 
-function AuthLayout() {
+/** Публичный лэйаут — Header + Footer, без проверки авторизации */
+function PublicLayout() {
+  return (
+    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-200">
+      <Header />
+      <main className="flex-1">
+        <Outlet />
+      </main>
+      <Footer />
+    </div>
+  )
+}
+
+/** Приватный лэйаут — редирект на /login если не залогинен */
+function PrivateLayout() {
   const user = useUserStore(s => s.user)
   if (!user) return <Navigate to="/login" replace />
   return (
@@ -88,19 +102,23 @@ export default function App() {
           <Route index              element={<Navigate to="/seller/dashboard" replace />} />
         </Route>
 
-        {/* Клиентский сайт */}
-        <Route element={<AuthLayout />}>
+        {/* Публичные страницы — доступны всем */}
+        <Route element={<PublicLayout />}>
           <Route path="/"               element={<Home />} />
           <Route path="/category/:name" element={<Category />} />
           <Route path="/search"         element={<Category />} />
           <Route path="/product/:id"    element={<ProductDetail />} />
           <Route path="/cart"           element={<Cart />} />
-          <Route path="/checkout"       element={<Checkout />} />
-          <Route path="/orders"         element={<Orders />} />
-          <Route path="/profile"        element={<Profile />} />
-          <Route path="/favorites"      element={<Favorites />} />
-          <Route path="/chat"           element={<Chat />} />
-          <Route path="/admin"          element={<AdminRoute><Admin /></AdminRoute>} />
+        </Route>
+
+        {/* Приватные страницы — только для авторизованных */}
+        <Route element={<PrivateLayout />}>
+          <Route path="/checkout"  element={<Checkout />} />
+          <Route path="/orders"    element={<Orders />} />
+          <Route path="/profile"   element={<Profile />} />
+          <Route path="/favorites" element={<Favorites />} />
+          <Route path="/chat"      element={<Chat />} />
+          <Route path="/admin"     element={<AdminRoute><Admin /></AdminRoute>} />
         </Route>
 
         <Route path="*" element={<NotFound />} />

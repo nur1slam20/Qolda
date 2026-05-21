@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Send, MessageCircle, Search, ChevronLeft, Circle } from 'lucide-react'
-import { messagesApi, type MessageOut, type SellerContact } from '../api/messages'
+import { messagesApi, type MessageOut, type ContactOut as SellerContact } from '../api/messages'
 import { useUserStore } from '../store/userStore'
 
 function formatTime(iso: string) {

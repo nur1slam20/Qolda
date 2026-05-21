@@ -1,26 +1,35 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, Navigate, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ShoppingCart,
-  Users, Bot, Settings, Bell, LogOut, Warehouse, MessageSquare, Menu, X,
+  Users, Bot, Settings, Bell, LogOut, Warehouse, MessageSquare, Menu,
 } from 'lucide-react'
 import { useUserStore } from '../../store/userStore'
-
-const NAV = [
-  { to: '/seller/dashboard', icon: LayoutDashboard, label: 'Дашборд'      },
-  { to: '/seller/products',  icon: Package,          label: 'Товары'       },
-  { to: '/seller/warehouse', icon: Warehouse,        label: 'Склад'        },
-  { to: '/seller/orders',    icon: ShoppingCart,     label: 'Заказы'       },
-  { to: '/seller/customers', icon: Users,            label: 'Клиенты'      },
-  { to: '/seller/ai',        icon: Bot,              label: 'AI Ассистент' },
-  { to: '/seller/chat',      icon: MessageSquare,    label: 'Чат'          },
-  { to: '/seller/settings',  icon: Settings,         label: 'Настройки'    },
-]
+import { messagesApi } from '../../api/messages'
 
 export default function SellerLayout() {
   const { user, logout } = useUserStore()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [unread, setUnread] = useState(0)
+
+  useEffect(() => {
+    const load = () => messagesApi.unreadCount().then(setUnread).catch(() => {})
+    load()
+    const id = setInterval(load, 10000)
+    return () => clearInterval(id)
+  }, [])
+
+  const NAV = [
+    { to: '/seller/dashboard', icon: LayoutDashboard, label: 'Дашборд'      },
+    { to: '/seller/products',  icon: Package,          label: 'Товары'       },
+    { to: '/seller/warehouse', icon: Warehouse,        label: 'Склад'        },
+    { to: '/seller/orders',    icon: ShoppingCart,     label: 'Заказы'       },
+    { to: '/seller/customers', icon: Users,            label: 'Клиенты'      },
+    { to: '/seller/ai',        icon: Bot,              label: 'AI Ассистент' },
+    { to: '/seller/chat',      icon: MessageSquare,    label: 'Чат',  badge: unread },
+    { to: '/seller/settings',  icon: Settings,         label: 'Настройки'    },
+  ]
 
   if (!user) return <Navigate to="/login" replace />
   if (!user.is_seller && !user.is_admin) return <Navigate to="/" replace />
@@ -45,7 +54,7 @@ export default function SellerLayout() {
 
       {/* Nav */}
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {NAV.map(({ to, icon: Icon, label }) => (
+        {NAV.map(({ to, icon: Icon, label, badge }) => (
           <NavLink
             key={to}
             to={to}
@@ -59,7 +68,12 @@ export default function SellerLayout() {
             }
           >
             <Icon size={17} />
-            {label}
+            <span className="flex-1">{label}</span>
+            {badge != null && badge > 0 && (
+              <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                {badge > 99 ? '99+' : badge}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

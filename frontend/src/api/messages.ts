@@ -10,16 +10,23 @@ export interface MessageOut {
   created_at: string
 }
 
-export interface SellerContact {
+export interface ContactOut {
   id: number
   name: string
   email: string
   unread_count: number
+  last_message: string | null
+  last_message_at: string | null
 }
 
 export const messagesApi = {
+  // Для клиентов — список продавцов
   getSellers: () =>
-    client.get<SellerContact[]>('/messages/sellers').then(r => r.data),
+    client.get<ContactOut[]>('/messages/sellers').then(r => r.data),
+
+  // Для продавцов — список клиентов написавших им
+  getClients: () =>
+    client.get<ContactOut[]>('/messages/clients').then(r => r.data),
 
   getConversation: (userId: number) =>
     client.get<MessageOut[]>(`/messages/conversation/${userId}`).then(r => r.data),

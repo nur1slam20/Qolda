@@ -23,6 +23,12 @@ export const productsApi = {
   getMine: (page = 1) =>
     client.get<ProductList>('/products/mine', { params: { page, limit: 50 } }).then(r => r.data),
 
+  update: (id: number, data: Partial<ProductCreate>) =>
+    client.put<Product>(`/products/${id}`, data).then(r => r.data),
+
+  updateStock: (id: number, stock: number) =>
+    client.patch<Product>(`/products/${id}/stock`, { stock }).then(r => r.data),
+
   checkPlagiarism: (id: number) =>
     client.get<PlagiarismResult>(`/products/${id}/plagiarism`).then(r => r.data),
 }

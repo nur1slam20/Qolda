@@ -12,35 +12,35 @@ from models import User
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-_API_URL = "https://api.anthropic.com/v1/messages"
-_MODEL   = "claude-3-haiku-20240307"
+_GROQ_URL   = "https://api.groq.com/openai/v1/chat/completions"
+_MODEL      = "llama-3.1-8b-instant"   # бесплатная быстрая модель
 
 
-async def _claude(messages: list[dict], system: str = "") -> str:
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
+async def _groq(messages: list[dict]) -> str:
+    api_key = os.getenv("GROQ_API_KEY", "")
     if not api_key:
-        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY не настроен")
-
-    payload: dict = {"model": _MODEL, "max_tokens": 1024, "messages": messages}
-    if system:
-        payload["system"] = system
+        raise HTTPException(status_code=503, detail="GROQ_API_KEY не настроен в .env")
 
     async with httpx.AsyncClient(timeout=30.0) as c:
         resp = await c.post(
-            _API_URL,
+            _GROQ_URL,
             headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
             },
-            json=payload,
+            json={
+                "model": _MODEL,
+                "messages": messages,
+                "max_tokens": 1024,
+                "temperature": 0.7,
+            },
         )
 
     if resp.status_code != 200:
-        logger.error("Anthropic error %s: %s", resp.status_code, resp.text)
+        logger.error("Groq error %s: %s", resp.status_code, resp.text)
         raise HTTPException(status_code=502, detail=f"AI error: {resp.text[:300]}")
 
-    return resp.json()["content"][0]["text"]
+    return resp.json()["choices"][0]["message"]["content"]
 
 
 class DescriptionRequest(BaseModel):
@@ -62,27 +62,42 @@ async def generate_description(
     req: DescriptionRequest,
     _: User = Depends(require_seller),
 ):
-    system = (
-        "Ты — профессиональный маркетолог для казахстанского маркетплейса QOLDA. "
-        "Пиши продающие описания товаров на русском языке. "
-        "Структура: 1-2 вступительных предложения, затем список из 4-5 преимуществ со значком ✓, "
-        "краткий призыв к действию. Без лишней воды — конкретно и убедительно."
-    )
-    parts = [f"Напиши продающее описание товара: {req.product_name}"]
-    if req.category:
-        parts.append(f"Категория: {req.category}")
-    if req.details:
-        parts.append(f"Характеристики: {req.details}")
-    result = await _claude([{"role": "user", "content": "\n".join(parts)}], system)
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Ты — профессиональный маркетолог казахстанского маркетплейса QOLDA. "
+                "Пиши продающие описания товаров на русском языке. "
+                "Структура: 1-2 вступительных предложения, затем список из 4-5 преимуществ со значком ✓, "
+                "краткий призыв к действию. Без лишней воды — конкретно и убедительно."
+            ),
+        },
+        {
+            "role": "user",
+            "content": "\n".join(filter(None, [
+                f"Напиши продающее описание товара: {req.product_name}",
+                f"Категория: {req.category}" if req.category else "",
+                f"Характеристики: {req.details}" if req.details else "",
+            ])),
+        },
+    ]
+    result = await _groq(messages)
     return AIResponse(result=result)
 
 
 @router.post("/chat", response_model=AIResponse)
 async def ai_chat(req: ChatRequest, _: User = Depends(require_seller)):
-    system = (
-        "Ты — AI-ассистент продавцов на маркетплейсе QOLDA (Казахстан). "
-        "Помогаешь с продажами, маркетингом, управлением товарами и ценообразованием. "
-        "Отвечай на русском языке, кратко и по делу."
-    )
-    result = await _claude([{"role": "user", "content": req.message}], system)
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Ты — AI-ассистент продавцов на маркетплейсе QOLDA (Казахстан). "
+                "Помогаешь с продажами, маркетингом, управлением товарами и ценообразованием. "
+                "Отвечай на русском языке, кратко и по делу. "
+                "Если вопрос не по теме — вежливо направь к теме продаж."
+            ),
+        },
+        {"role": "user", "content": req.message},
+    ]
+    result = await _groq(messages)
     return AIResponse(result=result)

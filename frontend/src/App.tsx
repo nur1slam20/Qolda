@@ -25,6 +25,7 @@ import SellerAI from './pages/seller/SellerAI'
 import SellerWarehouse from './pages/seller/SellerWarehouse'
 import SellerChat from './pages/seller/SellerChat'
 import SellerSettings from './pages/seller/SellerSettings'
+import Chat from './pages/Chat'
 import { useUserStore } from './store/userStore'
 import FloatingCart from './components/FloatingCart'
 import MotionBackground from './components/MotionBackground'
@@ -98,6 +99,7 @@ export default function App() {
           <Route path="/orders"         element={<Orders />} />
           <Route path="/profile"        element={<Profile />} />
           <Route path="/favorites"      element={<Favorites />} />
+          <Route path="/chat"           element={<Chat />} />
           <Route path="/admin"          element={<AdminRoute><Admin /></AdminRoute>} />
         </Route>
 

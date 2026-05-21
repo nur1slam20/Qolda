@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
-import { Menu, X, Search, ShoppingCart, Heart, User, Package, LayoutDashboard, Shield, Moon, Sun, MapPin } from 'lucide-react'
+import { Menu, X, Search, ShoppingCart, Heart, User, Package, LayoutDashboard, Shield, Moon, Sun, MapPin, MessageCircle } from 'lucide-react'
 import { useCartStore } from '../store/cartStore'
 import { useWishlistStore } from '../store/wishlistStore'
 import { useUserStore } from '../store/userStore'
@@ -279,6 +279,9 @@ export default function Header() {
               </Link>
               <Link to="/orders" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 text-sm">
                 <Package size={16} /> {t('my_orders')}
+              </Link>
+              <Link to="/chat" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 text-sm">
+                <MessageCircle size={16} /> Чат с продавцом
               </Link>
               {user.is_seller && (
                 <Link to="/seller/dashboard" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/10 text-sm font-semibold text-emerald-300">

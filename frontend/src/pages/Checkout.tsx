@@ -240,11 +240,12 @@ export default function Checkout() {
         items.map(i => ({ product_id: i.product.id, quantity: i.quantity })),
         address, customerName, phone, selectedDelivery?.id,
       )
-      clear()
       setOrderId(order.id)
       if (payMethod === 'kaspi_qr') {
+        // Корзину чистим ПОСЛЕ подтверждения оплаты (иначе экран "пусто" появляется)
         setShowQr(true)
       } else {
+        clear()
         setSuccess(true)
       }
     } catch (e: unknown) {
@@ -266,7 +267,8 @@ export default function Checkout() {
     )
   }
 
-  if (items.length === 0) {
+  // Не показываем "пусто" пока открыт QR или успех
+  if (items.length === 0 && !showQr && !success) {
     return (
       <div className="max-w-lg mx-auto px-4 py-20 text-center">
         <p className="text-gray-500 mb-4">Корзина пуста</p>
@@ -282,8 +284,8 @@ export default function Checkout() {
         <KaspiQrScreen
           amount={orderTotal}
           orderId={orderId}
-          onPaid={() => { setShowQr(false); setSuccess(true) }}
-          onCancel={() => { setShowQr(false); navigate('/orders') }}
+          onPaid={() => { clear(); setShowQr(false); setSuccess(true) }}
+          onCancel={() => { clear(); setShowQr(false); navigate('/orders') }}
         />
       )}
 

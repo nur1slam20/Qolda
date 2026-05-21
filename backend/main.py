@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
 
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
-_cors_env = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000")
+_cors_env = os.getenv("CORS_ORIGINS", "*")
 if _cors_env.strip() == "*":
     _origins = ["*"]
     _credentials = False          # browser blocks credentials with wildcard origin
@@ -89,3 +89,7 @@ app.include_router(messages.router, prefix="/api/messages", tags=["messages"])
 @app.get("/")
 def root():
     return {"message": "QOLDA API is running", "docs": "/docs"}
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}

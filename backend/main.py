@@ -1,4 +1,10 @@
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Загружаем .env самым первым делом, до всех импортов
+load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager

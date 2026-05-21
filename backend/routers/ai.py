@@ -3,11 +3,14 @@ import os
 from typing import Optional
 
 import httpx
+from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from auth import require_seller
 from models import User
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

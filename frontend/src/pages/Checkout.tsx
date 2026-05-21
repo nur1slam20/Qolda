@@ -25,13 +25,18 @@ const PAY_METHODS: { key: PayMethod; label: string; sub: string; icon: React.Ele
 ]
 
 // Реальная ссылка Kaspi Pay продавца
-const KASPI_PAY_URL = 'https://pay.kaspi.kz/pay/gnfrwdqa'
+const KASPI_BASE_URL = 'https://pay.kaspi.kz/pay/gnfrwdqa'
 const KASPI_MERCHANT = 'ИП NAYER'
 const KASPI_ADDRESS  = 'Алматы, Райымбек, 351'
 
-// QR генерируется из реальной ссылки Kaspi
-function kaspiQrUrl() {
-  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&color=000000&bgcolor=ffffff&data=${encodeURIComponent(KASPI_PAY_URL)}`
+// Ссылка с суммой — Kaspi автоматически подставит её в поле оплаты
+function kaspiPayLink(amount: number) {
+  return `${KASPI_BASE_URL}?sum=${amount}`
+}
+
+// QR генерируется из реальной ссылки с суммой
+function kaspiQrUrl(amount: number) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&color=000000&bgcolor=ffffff&data=${encodeURIComponent(kaspiPayLink(amount))}`
 }
 
 // ── Kaspi QR экран ──────────────────────────────────────────────────
@@ -79,11 +84,11 @@ function KaspiQrScreen({
           </div>
 
           {/* Real Kaspi QR code */}
-          <a href={KASPI_PAY_URL} target="_blank" rel="noopener noreferrer"
+          <a href={kaspiPayLink(amount)} target="_blank" rel="noopener noreferrer"
             className={`relative block rounded-2xl overflow-hidden border-4 transition-opacity ${expired ? 'border-red-300 opacity-40 pointer-events-none' : 'border-[#F14635]/20 hover:border-[#F14635]/50'}`}
           >
             <img
-              src={kaspiQrUrl()}
+              src={kaspiQrUrl(amount)}
               alt="Kaspi QR"
               className="w-[220px] h-[220px]"
             />
@@ -115,12 +120,12 @@ function KaspiQrScreen({
 
           {/* Open in Kaspi (mobile) */}
           <a
-            href={KASPI_PAY_URL}
+            href={kaspiPayLink(amount)}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full py-2.5 rounded-xl bg-[#F14635]/10 text-[#F14635] text-sm font-bold text-center hover:bg-[#F14635]/20 transition-colors"
+            className="w-full py-2.5 rounded-xl bg-[#F14635] hover:bg-[#d93d2b] text-white text-sm font-bold text-center transition-colors"
           >
-            📱 Открыть в Kaspi.kz
+            📱 Оплатить в Kaspi.kz → {formatPrice(amount)}
           </a>
 
           {/* Buttons */}

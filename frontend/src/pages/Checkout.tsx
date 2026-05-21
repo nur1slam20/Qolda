@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Truck, Clock, CheckCircle2, Smartphone, Banknote, CreditCard, ShieldCheck, RefreshCw } from 'lucide-react'
+import { Truck, Clock, CheckCircle2, Smartphone, Banknote, CreditCard, ShieldCheck } from 'lucide-react'
 import { toast } from '../store/toastStore'
 import { useCartStore } from '../store/cartStore'
 import { useUserStore } from '../store/userStore'
@@ -24,98 +24,104 @@ const PAY_METHODS: { key: PayMethod; label: string; sub: string; icon: React.Ele
   { key: 'card',     label: 'Картой при получении', sub: 'POS-терминал у курьера',       icon: CreditCard,  color: 'text-blue-600' },
 ]
 
-// QR-код через открытый сервис
-function kaspiQrUrl(amount: number, orderId: number, phone: string) {
-  const payload = JSON.stringify({
-    merchant: 'QOLDA',
-    phone,
-    amount,
-    order: orderId,
-    currency: 'KZT',
-  })
-  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=12&data=${encodeURIComponent(payload)}`
+// Реальная ссылка Kaspi Pay продавца
+const KASPI_PAY_URL = 'https://pay.kaspi.kz/pay/gnfrwdqa'
+const KASPI_MERCHANT = 'ИП NAYER'
+const KASPI_ADDRESS  = 'Алматы, Райымбек, 351'
+
+// QR генерируется из реальной ссылки Kaspi
+function kaspiQrUrl() {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&color=000000&bgcolor=ffffff&data=${encodeURIComponent(KASPI_PAY_URL)}`
 }
 
 // ── Kaspi QR экран ──────────────────────────────────────────────────
 function KaspiQrScreen({
-  amount, orderId, phone, onPaid, onCancel,
+  amount, orderId, onPaid, onCancel,
 }: {
-  amount: number; orderId: number; phone: string
+  amount: number; orderId: number
   onPaid: () => void; onCancel: () => void
 }) {
-  const TIMEOUT = 10 * 60 // 10 минут
+  const TIMEOUT = 10 * 60
   const [sec, setSec] = useState(TIMEOUT)
-  const [refreshed, setRefreshed] = useState(0)
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     timer.current = setInterval(() => setSec(s => s - 1), 1000)
     return () => { if (timer.current) clearInterval(timer.current) }
-  }, [refreshed])
+  }, [])
 
   useEffect(() => {
-    if (sec <= 0) { if (timer.current) clearInterval(timer.current) }
+    if (sec <= 0 && timer.current) clearInterval(timer.current)
   }, [sec])
 
-  const mm = String(Math.floor(Math.max(sec, 0) / 60)).padStart(2, '0')
-  const ss = String(Math.max(sec, 0) % 60).padStart(2, '0')
+  const mm  = String(Math.floor(Math.max(sec, 0) / 60)).padStart(2, '0')
+  const ss  = String(Math.max(sec, 0) % 60).padStart(2, '0')
   const expired = sec <= 0
-
-  const refresh = () => { setSec(TIMEOUT); setRefreshed(r => r + 1) }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
       <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
 
         {/* Header */}
-        <div className="bg-[#F14635] px-6 py-5 text-white text-center relative">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Kaspi_Bank_logo.svg/200px-Kaspi_Bank_logo.svg.png"
-              alt="Kaspi" className="h-6 object-contain brightness-0 invert" />
+        <div className="bg-[#F14635] px-6 py-4 text-white text-center">
+          <div className="flex items-center justify-center gap-2 mb-0.5">
+            <span className="text-2xl font-black tracking-tight">Kaspi QR</span>
           </div>
-          <p className="text-white/80 text-sm">Сканируй QR в приложении Kaspi.kz</p>
+          <p className="text-white/80 text-sm">Сканерлеп, төлеңіз</p>
         </div>
 
         <div className="px-6 py-5 flex flex-col items-center gap-4">
-          {/* Amount */}
+
+          {/* Amount + order */}
           <div className="text-center">
             <p className="text-3xl font-black text-gray-900 dark:text-white">{formatPrice(amount)}</p>
             <p className="text-xs text-gray-400 mt-0.5">Заказ #{orderId}</p>
           </div>
 
-          {/* QR */}
-          <div className={`relative rounded-2xl overflow-hidden border-4 ${expired ? 'border-red-300 opacity-50' : 'border-[#F14635]/20'}`}>
+          {/* Real Kaspi QR code */}
+          <a href={KASPI_PAY_URL} target="_blank" rel="noopener noreferrer"
+            className={`relative block rounded-2xl overflow-hidden border-4 transition-opacity ${expired ? 'border-red-300 opacity-40 pointer-events-none' : 'border-[#F14635]/20 hover:border-[#F14635]/50'}`}
+          >
             <img
-              key={refreshed}
-              src={kaspiQrUrl(amount, orderId, phone)}
+              src={kaspiQrUrl()}
               alt="Kaspi QR"
               className="w-[220px] h-[220px]"
             />
-            {expired && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-gray-900/80 gap-2">
-                <p className="text-sm font-bold text-red-500">QR истёк</p>
-                <button onClick={refresh} className="flex items-center gap-1.5 text-xs bg-red-100 text-red-600 px-3 py-1.5 rounded-lg">
-                  <RefreshCw size={12} /> Обновить
-                </button>
-              </div>
-            )}
+          </a>
+
+          {/* Merchant info */}
+          <div className="text-center">
+            <div className="w-9 h-9 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm mx-auto mb-1.5">И</div>
+            <p className="font-bold text-gray-900 dark:text-white text-sm">{KASPI_MERCHANT}</p>
+            <p className="text-xs text-gray-400">{KASPI_ADDRESS}</p>
+            <span className="inline-block mt-1.5 bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-0.5 rounded">GOLD</span>
           </div>
 
           {/* Timer */}
-          <div className={`flex items-center gap-2 text-sm font-mono font-bold ${expired ? 'text-red-500' : sec < 120 ? 'text-orange-500' : 'text-gray-700 dark:text-gray-300'}`}>
-            <Clock size={14} />
+          <div className={`flex items-center gap-2 text-sm font-mono font-bold ${expired ? 'text-red-500' : sec < 120 ? 'text-orange-500' : 'text-gray-500 dark:text-gray-400'}`}>
+            <Clock size={13} />
             {expired ? 'Время вышло' : `${mm}:${ss}`}
           </div>
 
           {/* Steps */}
-          <div className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-4 space-y-2 text-xs text-gray-600 dark:text-gray-400">
+          <div className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3.5 space-y-1.5 text-xs text-gray-600 dark:text-gray-400">
             {[
               '1. Откройте приложение Kaspi.kz',
               '2. Нажмите «Сканировать QR»',
-              '3. Направьте камеру на код',
+              '3. Наведите камеру на код выше',
               '4. Подтвердите платёж',
             ].map(s => <p key={s}>{s}</p>)}
           </div>
+
+          {/* Open in Kaspi (mobile) */}
+          <a
+            href={KASPI_PAY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-2.5 rounded-xl bg-[#F14635]/10 text-[#F14635] text-sm font-bold text-center hover:bg-[#F14635]/20 transition-colors"
+          >
+            📱 Открыть в Kaspi.kz
+          </a>
 
           {/* Buttons */}
           <div className="flex gap-3 w-full">
@@ -134,8 +140,7 @@ function KaspiQrScreen({
           </div>
 
           <p className="text-[10px] text-gray-400 text-center leading-relaxed">
-            Нажимая «Я оплатил», вы подтверждаете совершение платежа.<br />
-            Заказ будет передан в обработку автоматически.
+            Нажимая «Я оплатил», вы подтверждаете совершение платежа.
           </p>
         </div>
       </div>
@@ -272,7 +277,6 @@ export default function Checkout() {
         <KaspiQrScreen
           amount={orderTotal}
           orderId={orderId}
-          phone={phone}
           onPaid={() => { setShowQr(false); setSuccess(true) }}
           onCancel={() => { setShowQr(false); navigate('/orders') }}
         />

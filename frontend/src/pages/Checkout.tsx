@@ -208,6 +208,38 @@ export default function Checkout() {
   const [showQr, setShowQr]         = useState(false)
   const [success, setSuccess]       = useState(false)
 
+  const [suggestions, setSuggestions]       = useState<string[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const addressRef    = useRef<HTMLDivElement>(null)
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (addressRef.current && !addressRef.current.contains(e.target as Node))
+        setShowSuggestions(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleAddressChange = (value: string) => {
+    setAddress(value)
+    if (searchTimeout.current) clearTimeout(searchTimeout.current)
+    if (value.length < 3) { setSuggestions([]); setShowSuggestions(false); return }
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api'
+        const base = apiUrl.replace(/\/api$/, '')
+        const res = await fetch(`${base}/api/address/suggest?q=${encodeURIComponent(value)}`)
+        const data: string[] = await res.json()
+        setSuggestions(data)
+        setShowSuggestions(data.length > 0)
+      } catch {
+        setSuggestions([])
+      }
+    }, 400)
+  }
+
   const [deliveryServices, setDeliveryServices] = useState<DeliveryService[]>([])
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryService | null>(null)
 
@@ -327,9 +359,30 @@ export default function Checkout() {
               <h3 className="font-bold text-gray-800 dark:text-white mb-3">
                 Адрес доставки <span className="text-red-500">*</span>
               </h3>
-              <textarea required className="input" rows={3}
-                placeholder="Алматы, ул. Абая 150, кв. 25..."
-                value={address} onChange={e => setAddress(e.target.value)} />
+              <div ref={addressRef} className="relative">
+                <input
+                  required
+                  className="input"
+                  placeholder="Алматы, ул. Абая 150, кв. 25..."
+                  value={address}
+                  autoComplete="off"
+                  onChange={e => handleAddressChange(e.target.value)}
+                  onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                />
+                {showSuggestions && suggestions.length > 0 && (
+                  <ul className="absolute z-50 w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg mt-1 max-h-60 overflow-y-auto">
+                    {suggestions.map((s, i) => (
+                      <li
+                        key={i}
+                        className="px-4 py-2.5 text-sm text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer border-b last:border-b-0 border-gray-100 dark:border-gray-800"
+                        onMouseDown={() => { setAddress(s); setShowSuggestions(false); setSuggestions([]) }}
+                      >
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
 
             {/* Delivery */}

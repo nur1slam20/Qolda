@@ -5,10 +5,11 @@ from dotenv import load_dotenv
 # Загружаем .env самым первым делом, до всех импортов
 load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
+import httpx
 
 from database import engine, SessionLocal, Base, migrate_db
 import models  # noqa: F401 — registers all tables
@@ -93,3 +94,24 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/api/address/suggest")
+async def address_suggest(q: str = Query(..., min_length=2)):
+    key = os.getenv("TWOGIS_API_KEY", "")
+    url = (
+        f"https://catalog.api.2gis.com/3.0/items/geocode"
+        f"?q={q}&key={key}&locale=ru_KZ&fields=items.full_name&limit=10"
+    )
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(url, timeout=5)
+        data = resp.json()
+    items = data.get("result", {}).get("items", [])
+    results = [item.get("full_name") or item.get("name", "") for item in items if item.get("full_name") or item.get("name")]
+
+    # Фильтруем: оставляем только те адреса, где есть хотя бы одно слово из запроса
+    words = [w for w in q.lower().split() if len(w) > 2]
+    if words:
+        filtered = [r for r in results if any(w in r.lower() for w in words)]
+        return filtered[:6] if filtered else results[:6]
+
+    return results[:6]

@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import Header from './components/Header'
 import Footer from './components/Footer'
@@ -26,16 +25,35 @@ import SellerAI from './pages/seller/SellerAI'
 import SellerWarehouse from './pages/seller/SellerWarehouse'
 import SellerChat from './pages/seller/SellerChat'
 import SellerSettings from './pages/seller/SellerSettings'
-import BuyerChat from './pages/BuyerChat'
+import Chat from './pages/Chat'
 import { useUserStore } from './store/userStore'
-import { useWishlistStore } from './store/wishlistStore'
-import { useCartStore } from './store/cartStore'
+import FloatingCart from './components/FloatingCart'
+import MotionBackground from './components/MotionBackground'
+import { initTheme } from './store/themeStore'
+import { useLocationStore } from './store/locationStore'
+import { useEffect } from 'react'
 
-function AuthLayout() {
+initTheme()
+
+/** Публичный лэйаут — Header + Footer, без проверки авторизации */
+function PublicLayout() {
+  return (
+    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-200">
+      <Header />
+      <main className="flex-1">
+        <Outlet />
+      </main>
+      <Footer />
+    </div>
+  )
+}
+
+/** Приватный лэйаут — редирект на /login если не залогинен */
+function PrivateLayout() {
   const user = useUserStore(s => s.user)
   if (!user) return <Navigate to="/login" replace />
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-200">
       <Header />
       <main className="flex-1">
         <Outlet />
@@ -57,22 +75,10 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function BackendSync() {
-  const userId = useUserStore(s => s.user?.id)
-  const loadWishlist = useWishlistStore(s => s.loadFromBackend)
-  const loadCart = useCartStore(s => s.loadFromBackend)
-
-  useEffect(() => {
-    if (userId) {
-      loadWishlist()
-      loadCart()
-    }
-  }, [userId, loadWishlist, loadCart])
-
-  return null
-}
-
 export default function App() {
+  const detect = useLocationStore(s => s.detect)
+  useEffect(() => { detect() }, [])
+
   return (
     <BrowserRouter>
       <Routes>
@@ -96,28 +102,33 @@ export default function App() {
           <Route index              element={<Navigate to="/seller/dashboard" replace />} />
         </Route>
 
-        {/* Клиентский сайт */}
-        <Route element={<AuthLayout />}>
+        {/* Публичные страницы — доступны всем */}
+        <Route element={<PublicLayout />}>
           <Route path="/"               element={<Home />} />
           <Route path="/category/:name" element={<Category />} />
           <Route path="/search"         element={<Category />} />
           <Route path="/product/:id"    element={<ProductDetail />} />
           <Route path="/cart"           element={<Cart />} />
-          <Route path="/checkout"       element={<Checkout />} />
-          <Route path="/orders"         element={<Orders />} />
-          <Route path="/profile"        element={<Profile />} />
-          <Route path="/favorites"      element={<Favorites />} />
-          <Route path="/chat/:sellerId" element={<BuyerChat />} />
-          <Route path="/admin"          element={<AdminRoute><Admin /></AdminRoute>} />
+        </Route>
+
+        {/* Приватные страницы — только для авторизованных */}
+        <Route element={<PrivateLayout />}>
+          <Route path="/checkout"  element={<Checkout />} />
+          <Route path="/orders"    element={<Orders />} />
+          <Route path="/profile"   element={<Profile />} />
+          <Route path="/favorites" element={<Favorites />} />
+          <Route path="/chat"      element={<Chat />} />
+          <Route path="/admin"     element={<AdminRoute><Admin /></AdminRoute>} />
         </Route>
 
         <Route path="*" element={<NotFound />} />
       </Routes>
 
+      <MotionBackground />
       {/* Global overlays */}
-      <BackendSync />
       <Toasts />
       <ConfirmDialog />
+      <FloatingCart />
     </BrowserRouter>
   )
 }

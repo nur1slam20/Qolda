@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func, desc
+from sqlalchemy import or_
 from typing import Optional
 
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -9,7 +9,7 @@ import numpy as np
 
 from database import get_db
 from models import Product, ProductView, User
-from schemas import ProductOut, ProductList, ProductCreate, ProductUpdate, PlagiarismResult, PlagiarismMatch
+from schemas import ProductOut, ProductList, ProductCreate, PlagiarismResult, PlagiarismMatch
 from auth import get_current_user, require_seller
 
 router = APIRouter()
@@ -146,30 +146,6 @@ def get_my_products(
     )
 
 
-@router.get("/recently-viewed", response_model=list[ProductOut])
-def recently_viewed(
-    limit: int = Query(8, ge=1, le=20),
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user),
-):
-    if not current_user:
-        return []
-    subq = (
-        db.query(ProductView.product_id, func.max(ProductView.viewed_at).label("last_viewed"))
-        .filter(ProductView.user_id == current_user.id)
-        .group_by(ProductView.product_id)
-        .subquery()
-    )
-    products = (
-        db.query(Product)
-        .join(subq, Product.id == subq.c.product_id)
-        .order_by(desc(subq.c.last_viewed))
-        .limit(limit)
-        .all()
-    )
-    return [ProductOut.model_validate(p) for p in products]
-
-
 @router.get("/{product_id}/plagiarism", response_model=PlagiarismResult)
 def check_plagiarism(
     product_id: int,
@@ -252,53 +228,10 @@ def get_product(
     return ProductOut.model_validate(product)
 
 
-@router.put("/{product_id}", response_model=ProductOut)
-def update_product(
-    product_id: int,
-    data: ProductUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_seller),
-):
-    product = db.query(Product).filter(Product.id == product_id).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    if product.seller_id != current_user.id and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="You don't own this product")
-
-    if data.name_ru is not None:
-        product.name_ru = data.name_ru
-    if data.name_kz is not None:
-        product.name_kz = data.name_kz
-    if data.description_ru is not None:
-        product.description_ru = data.description_ru
-    if data.description_kz is not None:
-        product.description_kz = data.description_kz
-    if data.category is not None:
-        product.category = data.category
-    if data.subcategory is not None:
-        product.subcategory = data.subcategory
-    if data.tags is not None:
-        product.tags = data.tags
-    if data.price is not None:
-        product.price = data.price
-    if data.discount_price is not None:
-        product.discount_price = data.discount_price
-    if data.image_url is not None:
-        product.image_url = data.image_url
-    if data.stock is not None:
-        product.stock = data.stock
-
-    product.combined_text = f"{product.name_ru} {product.name_kz} {product.category} {product.description_ru or ''} {product.tags or ''}".strip()
-
-    db.commit()
-    db.refresh(product)
-    return ProductOut.model_validate(product)
-
-
 @router.patch("/{product_id}/stock", response_model=ProductOut)
 def update_stock(
     product_id: int,
-    data: dict,
+    payload: dict,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_seller),
 ):
@@ -307,15 +240,13 @@ def update_stock(
         raise HTTPException(status_code=404, detail="Product not found")
     if product.seller_id != current_user.id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="You don't own this product")
-
-    stock = data.get("stock")
-    if stock is None or not isinstance(stock, int) or stock < 0:
-        raise HTTPException(status_code=400, detail="stock must be a non-negative integer")
-
-    product.stock = stock
+    stock = payload.get("stock")
+    if stock is None or int(stock) < 0:
+        raise HTTPException(status_code=400, detail="Invalid stock value")
+    product.stock = int(stock)
     db.commit()
     db.refresh(product)
-    return ProductOut.model_validate(product)
+    return product
 
 
 @router.delete("/{product_id}")

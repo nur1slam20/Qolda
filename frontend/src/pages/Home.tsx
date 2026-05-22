@@ -4,6 +4,7 @@ import { Truck, ShieldCheck, RotateCcw, Headphones, TrendingUp, Zap, Clock } fro
 import ProductCard from '../components/ProductCard'
 import RecommendationCard from '../components/RecommendationCard'
 import CategoryGrid from '../components/CategoryGrid'
+import DealsRow from '../components/DealsRow'
 import { productsApi } from '../api/products'
 import { recsApi } from '../api/recommendations'
 import type { Product, Recommendation } from '../api/types'
@@ -112,6 +113,9 @@ export default function Home() {
 
       {/* ── Main content ── */}
       <div className="max-w-7xl mx-auto px-4 py-10">
+        {/* Deals row */}
+        <DealsRow />
+
         {/* Categories */}
         <CategoryGrid />
 

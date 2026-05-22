@@ -237,11 +237,24 @@ export default function Admin() {
       )}
 
       {/* ── USERS ── */}
-      {tab === 'users' && (
-        <div className="card overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Пользователи ({users.length})</h2>
-          </div>
+      {tab === 'users' && (() => {
+        const admins  = users.filter(u => u.is_admin)
+        const sellers = users.filter(u => u.is_seller && !u.is_admin)
+        const buyers  = users.filter(u => !u.is_seller && !u.is_admin)
+
+        const UserTable = ({
+          rows,
+          accentCls,
+          showSellerToggle = false,
+          showAdminToggle  = false,
+          showMakeSeller   = false,
+        }: {
+          rows: User[]
+          accentCls: string
+          showSellerToggle?: boolean
+          showAdminToggle?: boolean
+          showMakeSeller?: boolean
+        }) => (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
@@ -249,43 +262,56 @@ export default function Admin() {
                   <th className="px-4 py-3 text-left">ID</th>
                   <th className="px-4 py-3 text-left">Имя</th>
                   <th className="px-4 py-3 text-left">Email</th>
-                  <th className="px-4 py-3 text-left">Роль</th>
                   <th className="px-4 py-3 text-left">Дата</th>
                   <th className="px-4 py-3 text-left">Действия</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {users.map(u => (
+                {rows.length === 0 && (
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400 text-sm">Нет записей</td></tr>
+                )}
+                {rows.map(u => (
                   <tr key={u.id} className="hover:bg-gray-50/60">
                     <td className="px-4 py-3 text-gray-400">#{u.id}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">{u.name}</td>
                     <td className="px-4 py-3 text-gray-500">{u.email}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1.5 flex-wrap">
-                        {u.is_admin && <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">Админ</span>}
-                        {u.is_seller && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Продавец</span>}
-                        {!u.is_admin && !u.is_seller && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Покупатель</span>}
-                      </div>
-                    </td>
                     <td className="px-4 py-3 text-gray-400">{new Date(u.created_at).toLocaleDateString('ru-RU')}</td>
                     <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => toggleSeller(u)}
-                          title={u.is_seller ? 'Снять роль продавца' : 'Сделать продавцом'}
-                          className={`p-1.5 rounded-lg transition-colors ${u.is_seller ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
-                        >
-                          {u.is_seller ? <UserCheck size={14} /> : <UserX size={14} />}
-                        </button>
-                        <button
-                          onClick={() => toggleAdmin(u)}
-                          title={u.is_admin ? 'Снять права админа' : 'Сделать админом'}
-                          className={`p-1.5 rounded-lg transition-colors ${u.is_admin ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
-                        >
-                          {u.is_admin ? <Shield size={14} /> : <ShieldOff size={14} />}
-                        </button>
+                      <div className="flex gap-2 items-center">
+                        {showMakeSeller && (
+                          <button
+                            onClick={() => toggleSeller(u)}
+                            title="Сделать продавцом"
+                            className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                          >
+                            <UserCheck size={12} /> Продавец
+                          </button>
+                        )}
+                        {showSellerToggle && (
+                          <button
+                            onClick={() => toggleSeller(u)}
+                            title="Снять роль продавца"
+                            className="flex items-center gap-1 px-2 py-1 text-xs font-medium bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg transition-colors"
+                          >
+                            <UserX size={12} /> Снять
+                          </button>
+                        )}
+                        {showAdminToggle && (
+                          <button
+                            onClick={() => toggleAdmin(u)}
+                            title={u.is_admin ? 'Снять права админа' : 'Сделать админом'}
+                            className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg transition-colors ${
+                              u.is_admin
+                                ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                                : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                            }`}
+                          >
+                            {u.is_admin ? <><ShieldOff size={12} /> Снять</> : <><Shield size={12} /> Админ</>}
+                          </button>
+                        )}
                         <button
                           onClick={() => deleteUser(u.id)}
+                          title="Удалить пользователя"
                           className="p-1.5 rounded-lg bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors"
                         >
                           <Trash2 size={14} />
@@ -297,8 +323,56 @@ export default function Admin() {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+        )
+
+        return (
+          <div className="space-y-6">
+            {/* Summary chips */}
+            <div className="flex gap-3 flex-wrap">
+              {[
+                { label: 'Всего', count: users.length,   cls: 'bg-gray-100 text-gray-700' },
+                { label: 'Продавцы', count: sellers.length, cls: 'bg-blue-100 text-blue-700' },
+                { label: 'Покупатели', count: buyers.length,  cls: 'bg-green-100 text-green-700' },
+                { label: 'Администраторы', count: admins.length,  cls: 'bg-red-100 text-red-700' },
+              ].map(({ label, count, cls }) => (
+                <span key={label} className={`text-sm font-semibold px-3 py-1.5 rounded-full ${cls}`}>
+                  {label}: {count}
+                </span>
+              ))}
+            </div>
+
+            {/* Sellers */}
+            <div className="card overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
+                <div className="w-2 h-5 rounded-full bg-blue-500" />
+                <h2 className="font-semibold text-gray-900">Продавцы</h2>
+                <span className="text-xs bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full">{sellers.length}</span>
+              </div>
+              <UserTable rows={sellers} accentCls="blue" showSellerToggle showAdminToggle />
+            </div>
+
+            {/* Buyers */}
+            <div className="card overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
+                <div className="w-2 h-5 rounded-full bg-green-500" />
+                <h2 className="font-semibold text-gray-900">Покупатели</h2>
+                <span className="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">{buyers.length}</span>
+              </div>
+              <UserTable rows={buyers} accentCls="green" showMakeSeller />
+            </div>
+
+            {/* Admins */}
+            <div className="card overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
+                <div className="w-2 h-5 rounded-full bg-red-500" />
+                <h2 className="font-semibold text-gray-900">Администраторы</h2>
+                <span className="text-xs bg-red-100 text-red-700 font-bold px-2 py-0.5 rounded-full">{admins.length}</span>
+              </div>
+              <UserTable rows={admins} accentCls="red" showAdminToggle />
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── ORDERS ── */}
       {tab === 'orders' && (

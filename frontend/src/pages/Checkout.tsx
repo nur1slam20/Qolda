@@ -1,99 +1,197 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Truck, Clock, CheckCircle2, Package, MapPin, Phone, User, ArrowRight, Tag, X } from 'lucide-react'
+import { Truck, Clock, CheckCircle2, Smartphone, Banknote, CreditCard, ShieldCheck } from 'lucide-react'
 import { toast } from '../store/toastStore'
 import { useCartStore } from '../store/cartStore'
 import { useUserStore } from '../store/userStore'
 import { ordersApi } from '../api/orders'
 import { deliveryApi } from '../api/delivery'
-import { promoApi } from '../api/promo'
-import type { DeliveryService, PromoResult } from '../api/types'
+import type { DeliveryService } from '../api/types'
 import ProductImage from '../components/ProductImage'
 
-function formatPrice(n: number) {
-  return n.toLocaleString('ru-KZ') + ' ₸'
-}
-
+function formatPrice(n: number) { return n.toLocaleString('ru-KZ') + ' ₸' }
 function deliveryDays(min: number, max: number) {
   if (min === 0 && max === 0) return 'Сегодня'
   if (min === max) return `${min} дн.`
   return `${min}–${max} дн.`
 }
 
-function SuccessPage({ orderId, delivery }: { orderId: number; delivery: DeliveryService | null }) {
-  const navigate = useNavigate()
+type PayMethod = 'kaspi_qr' | 'cash' | 'card'
+
+const PAY_METHODS: { key: PayMethod; label: string; sub: string; icon: React.ElementType; color: string; badge?: string }[] = [
+  { key: 'kaspi_qr', label: 'Kaspi QR',         sub: 'Сканируй и оплати в Kaspi',     icon: Smartphone,  color: 'text-[#F14635]', badge: 'Быстро' },
+  { key: 'cash',     label: 'Наличными',          sub: 'Оплата курьеру при получении',  icon: Banknote,    color: 'text-green-600' },
+  { key: 'card',     label: 'Картой при получении', sub: 'POS-терминал у курьера',       icon: CreditCard,  color: 'text-blue-600' },
+]
+
+// Реальная ссылка Kaspi Pay продавца
+const KASPI_BASE_URL = 'https://pay.kaspi.kz/pay/gnfrwdqa'
+const KASPI_MERCHANT = 'ИП NAYER'
+const KASPI_ADDRESS  = 'Алматы, Райымбек, 351'
+
+// Ссылка с суммой — Kaspi автоматически подставит её в поле оплаты
+function kaspiPayLink(amount: number) {
+  return `${KASPI_BASE_URL}?sum=${amount}`
+}
+
+// QR генерируется из реальной ссылки с суммой
+function kaspiQrUrl(amount: number) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&color=000000&bgcolor=ffffff&data=${encodeURIComponent(kaspiPayLink(amount))}`
+}
+
+// ── Kaspi QR экран ──────────────────────────────────────────────────
+function KaspiQrScreen({
+  amount, orderId, onPaid, onCancel,
+}: {
+  amount: number; orderId: number
+  onPaid: () => void; onCancel: () => void
+}) {
+  const TIMEOUT = 10 * 60
+  const [sec, setSec] = useState(TIMEOUT)
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    timer.current = setInterval(() => setSec(s => s - 1), 1000)
+    return () => { if (timer.current) clearInterval(timer.current) }
+  }, [])
+
+  useEffect(() => {
+    if (sec <= 0 && timer.current) clearInterval(timer.current)
+  }, [sec])
+
+  const mm  = String(Math.floor(Math.max(sec, 0) / 60)).padStart(2, '0')
+  const ss  = String(Math.max(sec, 0) % 60).padStart(2, '0')
+  const expired = sec <= 0
+
   return (
-    <div className="max-w-lg mx-auto px-4 py-16 text-center">
-      {/* Animated checkmark */}
-      <div className="relative mx-auto mb-8 w-28 h-28">
-        <div className="absolute inset-0 bg-emerald-100 rounded-full animate-ping opacity-30" />
-        <div className="relative w-28 h-28 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center shadow-xl shadow-emerald-200">
-          <svg className="w-14 h-14 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-          </svg>
-        </div>
-      </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
 
-      <h2 className="text-3xl font-black text-gray-900 mb-2">Тапсырыс қабылданды!</h2>
-      <p className="text-gray-500 mb-8">Заказ успешно оформлен и передан в обработку</p>
-
-      {/* Order info card */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6 text-left space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-[#004B57]/10 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Package size={18} className="text-[#004B57]" />
+        {/* Header */}
+        <div className="bg-[#F14635] px-6 py-4 text-white text-center">
+          <div className="flex items-center justify-center gap-2 mb-0.5">
+            <span className="text-2xl font-black tracking-tight">Kaspi QR</span>
           </div>
-          <div>
-            <p className="text-xs text-gray-400">Тапсырыс номері</p>
-            <p className="font-bold text-gray-900 text-lg">№{orderId}</p>
-          </div>
+          <p className="text-white/80 text-sm">Сканерлеп, төлеңіз</p>
         </div>
 
-        {delivery && (
-          <div className="flex items-center gap-3 border-t border-gray-50 pt-4">
-            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Truck size={18} className="text-blue-500" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Жеткізу қызметі</p>
-              <p className="font-semibold text-gray-900">{delivery.name}</p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Ориентировочно {deliveryDays(delivery.days_min, delivery.days_max)}
-              </p>
-            </div>
-            <div className="ml-auto text-right">
-              <p className="text-sm font-bold text-[#004B57]">
-                {delivery.price === 0 ? 'Бесплатно' : formatPrice(delivery.price)}
-              </p>
-            </div>
-          </div>
-        )}
+        <div className="px-6 py-5 flex flex-col items-center gap-4">
 
-        <div className="border-t border-gray-50 pt-4">
-          <p className="text-xs text-gray-400 text-center">
-            Статус заказа можно отслеживать в разделе «Мои заказы»
+          {/* Amount + order */}
+          <div className="text-center">
+            <p className="text-3xl font-black text-gray-900 dark:text-white">{formatPrice(amount)}</p>
+            <p className="text-xs text-gray-400 mt-0.5">Заказ #{orderId}</p>
+          </div>
+
+          {/* Real Kaspi QR code */}
+          <a href={kaspiPayLink(amount)} target="_blank" rel="noopener noreferrer"
+            className={`relative block rounded-2xl overflow-hidden border-4 transition-opacity ${expired ? 'border-red-300 opacity-40 pointer-events-none' : 'border-[#F14635]/20 hover:border-[#F14635]/50'}`}
+          >
+            <img
+              src={kaspiQrUrl(amount)}
+              alt="Kaspi QR"
+              className="w-[220px] h-[220px]"
+            />
+          </a>
+
+          {/* Merchant info */}
+          <div className="text-center">
+            <div className="w-9 h-9 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm mx-auto mb-1.5">И</div>
+            <p className="font-bold text-gray-900 dark:text-white text-sm">{KASPI_MERCHANT}</p>
+            <p className="text-xs text-gray-400">{KASPI_ADDRESS}</p>
+            <span className="inline-block mt-1.5 bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-0.5 rounded">GOLD</span>
+          </div>
+
+          {/* Timer */}
+          <div className={`flex items-center gap-2 text-sm font-mono font-bold ${expired ? 'text-red-500' : sec < 120 ? 'text-orange-500' : 'text-gray-500 dark:text-gray-400'}`}>
+            <Clock size={13} />
+            {expired ? 'Время вышло' : `${mm}:${ss}`}
+          </div>
+
+          {/* Steps */}
+          <div className="w-full bg-gray-50 dark:bg-gray-800 rounded-xl p-3.5 space-y-1.5 text-xs text-gray-600 dark:text-gray-400">
+            {[
+              '1. Откройте приложение Kaspi.kz',
+              '2. Нажмите «Сканировать QR»',
+              '3. Наведите камеру на код выше',
+              '4. Подтвердите платёж',
+            ].map(s => <p key={s}>{s}</p>)}
+          </div>
+
+          {/* Open in Kaspi (mobile) */}
+          <a
+            href={kaspiPayLink(amount)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-2.5 rounded-xl bg-[#F14635] hover:bg-[#d93d2b] text-white text-sm font-bold text-center transition-colors"
+          >
+            📱 Оплатить в Kaspi.kz → {formatPrice(amount)}
+          </a>
+
+          {/* Buttons */}
+          <div className="flex gap-3 w-full">
+            <button
+              onClick={onCancel}
+              className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              Отменить
+            </button>
+            <button
+              onClick={onPaid}
+              className="flex-1 py-2.5 rounded-xl bg-[#F14635] hover:bg-[#d93d2b] text-white text-sm font-bold transition-colors"
+            >
+              Я оплатил ✓
+            </button>
+          </div>
+
+          <p className="text-[10px] text-gray-400 text-center leading-relaxed">
+            Нажимая «Я оплатил», вы подтверждаете совершение платежа.
           </p>
         </div>
-      </div>
-
-      <div className="flex gap-3 justify-center flex-wrap">
-        <button
-          onClick={() => navigate('/orders')}
-          className="flex items-center gap-2 bg-[#004B57] hover:bg-[#003840] text-white font-semibold px-5 py-2.5 rounded-xl transition-colors"
-        >
-          <Package size={16} /> Тапсырыстарым
-        </button>
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 font-semibold px-5 py-2.5 rounded-xl border border-gray-200 transition-colors"
-        >
-          Басты бет <ArrowRight size={15} />
-        </button>
       </div>
     </div>
   )
 }
 
+// ── Success screen ───────────────────────────────────────────────────
+function SuccessScreen({
+  orderId, payMethod, delivery, onOrders, onHome
+}: {
+  orderId: number; payMethod: PayMethod
+  delivery: DeliveryService | null
+  onOrders: () => void; onHome: () => void
+}) {
+  return (
+    <div className="max-w-lg mx-auto px-4 py-20 text-center">
+      <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
+        <ShieldCheck size={40} className="text-green-500" />
+      </div>
+      <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-2">
+        {payMethod === 'kaspi_qr' ? 'Оплата прошла!' : 'Заказ принят!'}
+      </h2>
+      <p className="text-gray-500 dark:text-gray-400 mb-1">
+        {payMethod === 'kaspi_qr'
+          ? 'Платёж через Kaspi QR подтверждён'
+          : payMethod === 'cash' ? 'Оплата наличными курьеру' : 'Оплата картой при получении'}
+      </p>
+      <div className="inline-flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl px-4 py-2 my-4">
+        <span className="text-gray-500 text-sm">Заказ</span>
+        <span className="font-black text-[#004B57] dark:text-teal-400 text-lg">#{orderId}</span>
+      </div>
+      {delivery && (
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+          🚚 {delivery.name} · {deliveryDays(delivery.days_min, delivery.days_max)}
+        </p>
+      )}
+      <div className="flex gap-3 justify-center flex-wrap">
+        <button onClick={onOrders} className="btn-primary">Мои заказы</button>
+        <button onClick={onHome}   className="btn-secondary">На главную</button>
+      </div>
+    </div>
+  )
+}
+
+// ── Main Checkout ────────────────────────────────────────────────────
 export default function Checkout() {
   const { items, total, clear } = useCartStore()
   const user = useUserStore(s => s.user)
@@ -103,14 +201,12 @@ export default function Checkout() {
   const [phone, setPhone]               = useState('')
   const [phoneError, setPhoneError]     = useState('')
   const [address, setAddress]           = useState('')
+  const [payMethod, setPayMethod]       = useState<PayMethod>('kaspi_qr')
   const [submitting, setSubmitting]     = useState(false)
-  const [success, setSuccess]           = useState(false)
-  const [orderId, setOrderId]           = useState<number | null>(null)
 
-  const [promoCode, setPromoCode]       = useState('')
-  const [promoInput, setPromoInput]     = useState('')
-  const [promoResult, setPromoResult]   = useState<PromoResult | null>(null)
-  const [promoLoading, setPromoLoading] = useState(false)
+  const [orderId, setOrderId]       = useState<number | null>(null)
+  const [showQr, setShowQr]         = useState(false)
+  const [success, setSuccess]       = useState(false)
 
   const [deliveryServices, setDeliveryServices] = useState<DeliveryService[]>([])
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryService | null>(null)
@@ -122,48 +218,16 @@ export default function Checkout() {
     })
   }, [])
 
-  const validatePhone = (value: string) => {
-    const digits = value.replace(/\D/g, '')
-    if (!value) return 'Введите номер телефона'
-    if (!/^(\+7|8)/.test(value)) return 'Номер должен начинаться с +7 или 8'
-    if (digits.length !== 11) return 'Номер должен содержать 11 цифр'
+  const validatePhone = (v: string) => {
+    const d = v.replace(/\D/g, '')
+    if (!v) return 'Введите номер телефона'
+    if (!/^(\+7|8)/.test(v)) return 'Номер должен начинаться с +7 или 8'
+    if (d.length !== 11) return 'Номер должен содержать 11 цифр'
     return ''
   }
 
-  const handlePhoneChange = (value: string) => {
-    setPhone(value)
-    if (phoneError) setPhoneError(validatePhone(value))
-  }
-
-  const deliveryCost  = selectedDelivery?.price ?? 0
-  const subtotal      = total() + deliveryCost
-  const discount      = promoResult?.valid ? promoResult.discount_amount : 0
-  const orderTotal    = Math.max(0, subtotal - discount)
-
-  const handleApplyPromo = async () => {
-    if (!promoInput.trim()) return
-    setPromoLoading(true)
-    try {
-      const result = await promoApi.validate(promoInput.trim(), subtotal)
-      setPromoResult(result)
-      if (result.valid) {
-        setPromoCode(promoInput.trim())
-        toast.success(result.message)
-      } else {
-        toast.error(result.message)
-      }
-    } catch {
-      toast.error('Промокод тексеру қатесі')
-    } finally {
-      setPromoLoading(false)
-    }
-  }
-
-  const handleRemovePromo = () => {
-    setPromoCode('')
-    setPromoInput('')
-    setPromoResult(null)
-  }
+  const deliveryCost = selectedDelivery?.price ?? 0
+  const orderTotal   = total() + deliveryCost
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -174,252 +238,263 @@ export default function Checkout() {
     try {
       const order = await ordersApi.create(
         items.map(i => ({ product_id: i.product.id, quantity: i.quantity })),
-        address,
-        customerName,
-        phone,
-        selectedDelivery?.id,
-        promoCode || undefined,
+        address, customerName, phone, selectedDelivery?.id,
       )
-      clear()
       setOrderId(order.id)
-      setSuccess(true)
+      if (payMethod === 'kaspi_qr') {
+        // Корзину чистим ПОСЛЕ подтверждения оплаты (иначе экран "пусто" появляется)
+        setShowQr(true)
+      } else {
+        clear()
+        setSuccess(true)
+      }
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      toast.error(msg || 'Қате болды / Произошла ошибка')
+      toast.error(msg || 'Произошла ошибка')
     } finally {
       setSubmitting(false)
     }
   }
 
   if (success && orderId) {
-    return <SuccessPage orderId={orderId} delivery={selectedDelivery} />
+    return (
+      <SuccessScreen
+        orderId={orderId} payMethod={payMethod}
+        delivery={selectedDelivery}
+        onOrders={() => navigate('/orders')}
+        onHome={() => navigate('/')}
+      />
+    )
   }
 
-  if (items.length === 0) {
+  // Не показываем "пусто" пока открыт QR или успех
+  if (items.length === 0 && !showQr && !success) {
     return (
       <div className="max-w-lg mx-auto px-4 py-20 text-center">
-        <p className="text-gray-500 mb-4">Себет бос / Корзина пуста</p>
-        <button onClick={() => navigate('/')} className="btn-primary">Дүкенге оралу / В магазин</button>
+        <p className="text-gray-500 mb-4">Корзина пуста</p>
+        <button onClick={() => navigate('/')} className="btn-primary">В магазин</button>
       </div>
     )
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6 text-gray-900">Тапсырыс беру / Оформление заказа</h1>
+    <>
+      {/* Kaspi QR modal */}
+      {showQr && orderId && (
+        <KaspiQrScreen
+          amount={orderTotal}
+          orderId={orderId}
+          onPaid={() => { clear(); setShowQr(false); setSuccess(true) }}
+          onCancel={() => { clear(); setShowQr(false); navigate('/orders') }}
+        />
+      )}
 
-      <div className="flex flex-col md:flex-row gap-6">
-        <form onSubmit={handleSubmit} className="flex-1 space-y-4">
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="flex items-center gap-3 mb-6">
+          <h1 className="text-2xl font-black text-gray-900 dark:text-white">Оформление заказа</h1>
+        </div>
 
-          {/* Recipient */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
-            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-              <User size={16} className="text-[#004B57]" /> Алушы деректері / Данные получателя
-            </h3>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Аты-жөні / ФИО <span className="text-red-500">*</span>
-              </label>
-              <input
-                required
-                className="input"
-                placeholder="Айдар Бекұлы"
-                value={customerName}
-                onChange={e => setCustomerName(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                <Phone size={13} className="inline mr-1" />Телефон <span className="text-red-500">*</span>
-              </label>
-              <input
-                required
-                type="tel"
-                className={`input ${phoneError ? 'border-red-400 focus:ring-red-200' : ''}`}
-                placeholder="+77771234567 или 87771234567"
-                value={phone}
-                onChange={e => handlePhoneChange(e.target.value)}
-                onBlur={() => setPhoneError(validatePhone(phone))}
-              />
-              {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
-            </div>
-          </div>
+        <div className="flex flex-col md:flex-row gap-6">
+          <form onSubmit={handleSubmit} className="flex-1 space-y-4">
 
-          {/* Address */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <MapPin size={16} className="text-[#004B57]" />
-              Жеткізу мекенжайы / Адрес доставки <span className="text-red-500">*</span>
-            </h3>
-            <textarea
-              required
-              className="input"
-              rows={3}
-              placeholder="Алматы, ул. Абая 150, кв. 25..."
-              value={address}
-              onChange={e => setAddress(e.target.value)}
-            />
-          </div>
-
-          {/* Promo code */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-              <Tag size={16} className="text-[#F5A623]" />
-              Промокод
-            </h3>
-            {promoResult?.valid ? (
-              <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-                <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-emerald-700">{promoCode}</p>
-                  <p className="text-xs text-emerald-600">Скидка {promoResult.discount_percent}% — −{promoResult.discount_amount.toLocaleString('ru-KZ')} ₸</p>
-                </div>
-                <button onClick={handleRemovePromo} className="text-emerald-400 hover:text-emerald-600 transition-colors">
-                  <X size={16} />
-                </button>
+            {/* Recipient */}
+            <div className="card p-6 space-y-4">
+              <h3 className="font-bold text-gray-800 dark:text-white">Данные получателя</h3>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  ФИО <span className="text-red-500">*</span>
+                </label>
+                <input required className="input" placeholder="Айдар Бекұлы"
+                  value={customerName} onChange={e => setCustomerName(e.target.value)} />
               </div>
-            ) : (
-              <div className="flex gap-2">
-                <input
-                  value={promoInput}
-                  onChange={e => setPromoInput(e.target.value.toUpperCase())}
-                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleApplyPromo())}
-                  placeholder="QOLDA10"
-                  className="input flex-1 uppercase tracking-widest text-sm font-mono"
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Телефон <span className="text-red-500">*</span>
+                </label>
+                <input required type="tel"
+                  className={`input ${phoneError ? 'border-red-400 focus:ring-red-200' : ''}`}
+                  placeholder="+77771234567"
+                  value={phone}
+                  onChange={e => { setPhone(e.target.value); if (phoneError) setPhoneError(validatePhone(e.target.value)) }}
+                  onBlur={() => setPhoneError(validatePhone(phone))}
                 />
-                <button
-                  type="button"
-                  onClick={handleApplyPromo}
-                  disabled={promoLoading || !promoInput.trim()}
-                  className="px-4 py-2.5 bg-[#F5A623] hover:bg-[#e09520] text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 flex-shrink-0"
-                >
-                  {promoLoading ? '...' : 'Қолдану'}
-                </button>
+                {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
+              </div>
+            </div>
+
+            {/* Address */}
+            <div className="card p-6">
+              <h3 className="font-bold text-gray-800 dark:text-white mb-3">
+                Адрес доставки <span className="text-red-500">*</span>
+              </h3>
+              <textarea required className="input" rows={3}
+                placeholder="Алматы, ул. Абая 150, кв. 25..."
+                value={address} onChange={e => setAddress(e.target.value)} />
+            </div>
+
+            {/* Delivery */}
+            {deliveryServices.length > 0 && (
+              <div className="card p-6">
+                <h3 className="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                  <Truck size={16} className="text-[#004B57]" /> Способ доставки
+                </h3>
+                <div className="space-y-2">
+                  {deliveryServices.map(svc => {
+                    const sel = selectedDelivery?.id === svc.id
+                    return (
+                      <label key={svc.id}
+                        className={`flex items-center gap-4 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${sel ? 'border-[#004B57] bg-[#004B57]/5' : 'border-gray-100 dark:border-gray-800 hover:border-gray-200'}`}>
+                        <input type="radio" name="delivery" className="sr-only"
+                          checked={sel} onChange={() => setSelectedDelivery(svc)} />
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${sel ? 'border-[#004B57]' : 'border-gray-300'}`}>
+                          {sel && <div className="w-2 h-2 rounded-full bg-[#004B57]" />}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">{svc.name}</p>
+                          <p className="text-xs text-gray-400">{svc.name_kz}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-sm font-bold text-gray-900 dark:text-white">
+                            {svc.price === 0 ? 'Бесплатно' : formatPrice(svc.price)}
+                          </p>
+                          <p className="text-xs text-gray-400 flex items-center gap-1 justify-end">
+                            <Clock size={10} /> {deliveryDays(svc.days_min, svc.days_max)}
+                          </p>
+                        </div>
+                        {sel && <CheckCircle2 size={16} className="text-[#004B57] flex-shrink-0" />}
+                      </label>
+                    )
+                  })}
+                </div>
               </div>
             )}
-          </div>
 
-          {/* Delivery */}
-          {deliveryServices.length > 0 && (
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Truck size={16} className="text-[#004B57]" />
-                Жеткізу тәсілі / Способ доставки
+            {/* Payment method */}
+            <div className="card p-6">
+              <h3 className="font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+                💳 Способ оплаты
               </h3>
               <div className="space-y-2">
-                {deliveryServices.map(svc => {
-                  const selected = selectedDelivery?.id === svc.id
+                {PAY_METHODS.map(m => {
+                  const sel = payMethod === m.key
+                  const Icon = m.icon
                   return (
-                    <label
-                      key={svc.id}
-                      className={`flex items-center gap-4 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
-                        selected
-                          ? 'border-[#004B57] bg-[#004B57]/5'
-                          : 'border-gray-100 hover:border-gray-200'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="delivery"
-                        className="sr-only"
-                        checked={selected}
-                        onChange={() => setSelectedDelivery(svc)}
-                      />
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                        selected ? 'border-[#004B57]' : 'border-gray-300'
+                    <label key={m.key}
+                      className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                        sel
+                          ? m.key === 'kaspi_qr'
+                            ? 'border-[#F14635] bg-[#F14635]/5'
+                            : 'border-[#004B57] bg-[#004B57]/5'
+                          : 'border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700'
                       }`}>
-                        {selected && <div className="w-2 h-2 rounded-full bg-[#004B57]" />}
+                      <input type="radio" name="payment" className="sr-only"
+                        checked={sel} onChange={() => setPayMethod(m.key)} />
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                        sel
+                          ? m.key === 'kaspi_qr' ? 'border-[#F14635]' : 'border-[#004B57]'
+                          : 'border-gray-300'
+                      }`}>
+                        {sel && <div className={`w-2 h-2 rounded-full ${m.key === 'kaspi_qr' ? 'bg-[#F14635]' : 'bg-[#004B57]'}`} />}
+                      </div>
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                        m.key === 'kaspi_qr' ? 'bg-[#F14635]/10' : 'bg-gray-100 dark:bg-gray-800'
+                      }`}>
+                        <Icon size={18} className={m.color} />
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-semibold text-gray-900">{svc.name}</p>
-                        <p className="text-xs text-gray-400">{svc.name_kz}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-bold text-gray-900 dark:text-white">{m.label}</p>
+                          {m.badge && (
+                            <span className="text-[10px] font-bold bg-[#F14635] text-white px-1.5 py-0.5 rounded-full">
+                              {m.badge}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400">{m.sub}</p>
                       </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-sm font-bold text-gray-900">
-                          {svc.price === 0 ? 'Бесплатно' : formatPrice(svc.price)}
-                        </p>
-                        <p className="text-xs text-gray-400 flex items-center gap-1 justify-end">
-                          <Clock size={10} />
-                          {deliveryDays(svc.days_min, svc.days_max)}
-                        </p>
-                      </div>
-                      {selected && <CheckCircle2 size={16} className="text-[#004B57] flex-shrink-0" />}
+                      {sel && <CheckCircle2 size={16} className={m.key === 'kaspi_qr' ? 'text-[#F14635]' : 'text-[#004B57]'} />}
                     </label>
                   )
                 })}
               </div>
-            </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={submitting || !address || !customerName || !phone || !!phoneError}
-            className="w-full flex items-center justify-center gap-2 bg-[#004B57] hover:bg-[#003840] disabled:bg-gray-300 text-white font-semibold py-3.5 rounded-xl transition-colors text-base"
-          >
-            {submitting ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                Жіберілуде...
-              </>
-            ) : (
-              <>Растау / Подтвердить заказ</>
-            )}
-          </button>
-        </form>
-
-        {/* Order summary */}
-        <div className="w-full md:w-72">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sticky top-24">
-            <h3 className="font-bold text-gray-900 mb-4">Тапсырыс / Заказ</h3>
-            <div className="space-y-3 mb-4">
-              {items.map(({ product, quantity }) => {
-                const price = product.discount_price ?? product.price
-                return (
-                  <div key={product.id} className="flex gap-3 text-sm">
-                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-50 flex-shrink-0">
-                      <ProductImage
-                        src={product.image_url}
-                        alt={product.name_ru}
-                        className="w-full h-full object-cover"
-                        iconSize={20}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium line-clamp-1 text-gray-900">{product.name_ru}</p>
-                      <p className="text-gray-400 text-xs mt-0.5">{quantity} × {formatPrice(price)}</p>
-                    </div>
-                  </div>
-                )
-              })}
+              {/* Kaspi tip */}
+              {payMethod === 'kaspi_qr' && (
+                <div className="mt-3 flex items-start gap-2 p-3 bg-[#F14635]/5 border border-[#F14635]/20 rounded-xl">
+                  <span className="text-lg">📱</span>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                    После оформления откроется QR-код. Откройте <strong>Kaspi.kz</strong> → <strong>Сканировать</strong> → наведите камеру и подтвердите платёж.
+                  </p>
+                </div>
+              )}
             </div>
 
-            <div className="border-t border-gray-100 pt-3 space-y-2">
-              <div className="flex justify-between text-sm text-gray-500">
-                <span>Товары</span>
-                <span className="font-medium text-gray-900">{formatPrice(total())}</span>
+            <button
+              type="submit"
+              disabled={submitting || !address || !customerName || !phone || !!phoneError}
+              className={`w-full py-3.5 rounded-xl text-white text-base font-bold transition-all disabled:opacity-50 ${
+                payMethod === 'kaspi_qr'
+                  ? 'bg-[#F14635] hover:bg-[#d93d2b]'
+                  : 'bg-[#004B57] hover:bg-[#003840]'
+              }`}
+            >
+              {submitting
+                ? 'Оформляем...'
+                : payMethod === 'kaspi_qr'
+                  ? '📱 Оформить и оплатить через Kaspi'
+                  : 'Подтвердить заказ →'}
+            </button>
+          </form>
+
+          {/* Order summary */}
+          <div className="w-full md:w-72">
+            <div className="card p-6 sticky top-4">
+              <h3 className="font-bold mb-4 text-gray-800 dark:text-white">Ваш заказ</h3>
+              <div className="space-y-3 mb-4">
+                {items.map(({ product, quantity }) => {
+                  const price = product.discount_price ?? product.price
+                  return (
+                    <div key={product.id} className="flex gap-3 text-sm">
+                      <ProductImage src={product.image_url} alt={product.name_ru}
+                        className="w-12 h-12 object-cover rounded-lg flex-shrink-0" iconSize={20} />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium line-clamp-1 text-gray-800 dark:text-white">{product.name_ru}</p>
+                        <p className="text-gray-500">{quantity} × {formatPrice(price)}</p>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-              {selectedDelivery && (
-                <div className="flex justify-between text-sm text-gray-500">
-                  <span>Доставка</span>
-                  <span className={`font-medium ${selectedDelivery.price === 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
-                    {selectedDelivery.price === 0 ? 'Бесплатно' : formatPrice(selectedDelivery.price)}
-                  </span>
+
+              <div className="border-t dark:border-gray-800 pt-3 space-y-2">
+                <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <span>Товары</span><span>{formatPrice(total())}</span>
                 </div>
-              )}
-              {promoResult?.valid && (
-                <div className="flex justify-between text-sm text-emerald-600">
-                  <span className="flex items-center gap-1"><Tag size={11} /> Промокод {promoResult.discount_percent}%</span>
-                  <span className="font-semibold">−{formatPrice(promoResult.discount_amount)}</span>
+                {selectedDelivery && (
+                  <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                    <span>Доставка</span>
+                    <span>{selectedDelivery.price === 0 ? 'Бесплатно' : formatPrice(selectedDelivery.price)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-black text-base border-t dark:border-gray-800 pt-2">
+                  <span className="text-gray-900 dark:text-white">Итого</span>
+                  <span className="text-[#004B57] dark:text-teal-400">{formatPrice(orderTotal)}</span>
                 </div>
-              )}
-              <div className="flex justify-between font-bold text-base border-t border-gray-100 pt-2.5">
-                <span>Барлығы / Итого</span>
-                <span className="text-[#004B57]">{formatPrice(orderTotal)}</span>
+              </div>
+
+              {/* Payment badge */}
+              <div className={`mt-4 flex items-center gap-2 p-3 rounded-xl text-xs font-semibold ${
+                payMethod === 'kaspi_qr'
+                  ? 'bg-[#F14635]/10 text-[#F14635]'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+              }`}>
+                {payMethod === 'kaspi_qr' ? <Smartphone size={13} /> : payMethod === 'cash' ? <Banknote size={13} /> : <CreditCard size={13} />}
+                {PAY_METHODS.find(m => m.key === payMethod)?.label}
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
